@@ -5,6 +5,21 @@ import (
 	"short-link/internal/pkg/logger"
 )
 
+// @title           短链接服务 API
+// @version         1.0
+// @description     短链接生成与管理服务的 API 文档
+// @termsOfService  http://swagger.io/terms/
+// @contact.name   API Support
+// @contact.url    http://www.example.com/support
+// @contact.email  support@example.com
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+// @host      localhost:8080
+// @BasePath  /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description 输入格式: Bearer {token}
 func main() {
 	// 创建并初始化 server
 	server := bootstrap.New()

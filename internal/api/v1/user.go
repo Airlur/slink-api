@@ -41,7 +41,17 @@ func handleUserServiceError(c *gin.Context, err error) {
 	response.Fail(c, response.InternalError, "") // message留空，Fail函数会自动填充
 }
 
-// CheckExistence 检查用户名或邮箱是否存在
+// CheckExistence godoc
+// @Summary      检查用户名或邮箱是否存在
+// @Description  检查用户名或邮箱是否已被注册，至少传入一个参数
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        username  query     string  false  "用户名"
+// @Param        email     query     string  false  "邮箱"
+// @Success      200       {object}  response.Response{data=dto.CheckExistenceResponse}  "查询成功"
+// @Failure      400       {object}  response.Response  "请求参数错误"
+// @Router       /users/check [get]
 func (h *UserHandler) CheckExistence(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.CheckExistenceRequest
@@ -59,7 +69,17 @@ func (h *UserHandler) CheckExistence(c *gin.Context) {
 	response.Ok(c, result, "查询成功")
 }
 
-// Register 用户注册
+// Register godoc
+// @Summary      用户注册
+// @Description  新用户注册，需要先获取验证码
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.RegisterRequest  true  "注册信息"
+// @Success      200      {object}  response.Response    "注册成功"
+// @Failure      400      {object}  response.Response    "请求参数错误"
+// @Failure      409      {object}  response.Response    "用户已存在"
+// @Router       /register [post]
 func (h *UserHandler) Register(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.RegisterRequest
@@ -75,7 +95,17 @@ func (h *UserHandler) Register(c *gin.Context) {
 	response.Ok(c, nil, "注册成功，请检查邮箱完成验证") // 提示语可以根据未来逻辑调整
 }
 
-// 用户登录 Login
+// Login godoc
+// @Summary      用户登录
+// @Description  用户登录获取访问令牌
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.LoginRequest                            true  "登录信息"
+// @Success      200      {object}  response.Response{data=dto.LoginResponse}   "登录成功"
+// @Failure      400      {object}  response.Response                           "用户名或密码错误"
+// @Failure      403      {object}  response.Response                           "用户状态异常"
+// @Router       /login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.LoginRequest
@@ -92,7 +122,16 @@ func (h *UserHandler) Login(c *gin.Context) {
 	response.Ok(c, result, "登录成功")
 }
 
-// RefreshToken 刷新访问令牌
+// RefreshToken godoc
+// @Summary      刷新访问令牌
+// @Description  使用刷新令牌获取新的访问令牌
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.RefreshTokenRequest  true  "刷新令牌"
+// @Success      200      {object}  response.Response        "令牌刷新成功"
+// @Failure      401      {object}  response.Response        "令牌无效或已过期"
+// @Router       /users/token/refresh [post]
 func (h *UserHandler) RefreshToken(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.RefreshTokenRequest
@@ -110,7 +149,16 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
 	response.Ok(c, result, "令牌刷新成功")
 }
 
-// Logout 退出登录
+// Logout godoc
+// @Summary      退出登录
+// @Description  用户退出登录，使当前令牌失效
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  response.Response  "退出登录成功"
+// @Failure      401  {object}  response.Response  "用户未认证"
+// @Router       /users/logout [post]
 func (h *UserHandler) Logout(c *gin.Context) {
 	ctx := c.Request.Context()
 	// 由于加了 auth 中间件，这里一定能获取到用户信息
@@ -127,7 +175,19 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	response.Ok(c, nil, "退出登录成功")
 }
 
-// ForceLogout 管理员强制用户下线
+// ForceLogout godoc
+// @Summary      强制用户下线
+// @Description  管理员强制指定用户下线
+// @Tags         管理员-用户管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int                true  "用户ID"
+// @Success      200  {object}  response.Response  "强制下线成功"
+// @Failure      400  {object}  response.Response  "无效的用户ID"
+// @Failure      401  {object}  response.Response  "用户未认证"
+// @Failure      403  {object}  response.Response  "无权访问"
+// @Router       /admin/users/{id}/session [delete]
 func (h *UserHandler) ForceLogout(c *gin.Context) {
 	ctx := c.Request.Context()
 	
@@ -147,7 +207,21 @@ func (h *UserHandler) ForceLogout(c *gin.Context) {
 	response.Ok(c, nil, "强制下线成功")
 }
 
-// Update 更新用户信息
+// Update godoc
+// @Summary      更新用户信息
+// @Description  更新指定用户的基本信息
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      int                    true  "用户ID"
+// @Param        request  body      dto.UpdateUserRequest  true  "更新信息"
+// @Success      200      {object}  response.Response      "更新成功"
+// @Failure      400      {object}  response.Response      "请求参数错误"
+// @Failure      401      {object}  response.Response      "用户未认证"
+// @Failure      403      {object}  response.Response      "无权访问"
+// @Failure      404      {object}  response.Response      "用户不存在"
+// @Router       /users/{id} [put]
 func (h *UserHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -171,7 +245,20 @@ func (h *UserHandler) Update(c *gin.Context) {
 	response.Ok(c, nil, "更新用户信息成功")
 }
 
-// UpdatePassword 用户修改密码
+// UpdatePassword godoc
+// @Summary      修改密码
+// @Description  用户修改自己的密码
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      int                        true  "用户ID"
+// @Param        request  body      dto.UpdatePasswordRequest  true  "密码信息"
+// @Success      200      {object}  response.Response          "密码修改成功"
+// @Failure      400      {object}  response.Response          "请求参数错误"
+// @Failure      401      {object}  response.Response          "用户未认证"
+// @Failure      403      {object}  response.Response          "无权访问"
+// @Router       /users/{id}/reset [put]
 func (h *UserHandler) UpdatePassword(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -195,7 +282,20 @@ func (h *UserHandler) UpdatePassword(c *gin.Context) {
 	response.Ok(c, nil, "密码修改成功")
 }
 
-// Delete 删除用户
+// Delete godoc
+// @Summary      删除用户
+// @Description  删除指定用户（软删除）
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int                true  "用户ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Failure      400  {object}  response.Response  "无效的用户ID"
+// @Failure      401  {object}  response.Response  "用户未认证"
+// @Failure      403  {object}  response.Response  "无权访问"
+// @Failure      404  {object}  response.Response  "用户不存在"
+// @Router       /users/{id} [delete]
 func (h *UserHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -212,7 +312,20 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	response.Ok(c, nil, "删除成功")
 }
 
-// Get 根据用户ID查询用户
+// Get godoc
+// @Summary      获取用户信息
+// @Description  获取指定用户的详细信息
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id   path      int                                         true  "用户ID"
+// @Success      200  {object}  response.Response{data=dto.UserResponse}    "获取成功"
+// @Failure      400  {object}  response.Response                           "无效的用户ID"
+// @Failure      401  {object}  response.Response                           "用户未认证"
+// @Failure      403  {object}  response.Response                           "无权访问"
+// @Failure      404  {object}  response.Response                           "用户不存在"
+// @Router       /users/{id} [get]
 func (h *UserHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -230,7 +343,21 @@ func (h *UserHandler) Get(c *gin.Context) {
 	response.Ok(c, user, "获取用户信息成功")
 }
 
-// List 查询所有用户
+// List godoc
+// @Summary      获取用户列表
+// @Description  管理员获取用户列表，支持分页和筛选
+// @Tags         管理员-用户管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        page      query     int     false  "页码"      default(1)
+// @Param        pageSize  query     int     false  "每页数量"  default(10)
+// @Param        username  query     string  false  "用户名（模糊查询）"
+// @Param        status    query     int     false  "用户状态"
+// @Success      200       {object}  response.Response  "获取成功"
+// @Failure      401       {object}  response.Response  "用户未认证"
+// @Failure      403       {object}  response.Response  "无权访问"
+// @Router       /admin/users [get]
 func (h *UserHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c) // 获取用户信息用于鉴权
@@ -251,7 +378,17 @@ func (h *UserHandler) List(c *gin.Context) {
 	response.Ok(c, result, "获取用户列表成功")
 }
 
-// ForgotPassword 忘记密码
+// ForgotPassword godoc
+// @Summary      忘记密码
+// @Description  发送密码重置验证码到用户邮箱或手机
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.ForgotPasswordRequest  true  "账号信息"
+// @Success      200      {object}  response.Response          "验证码已发送"
+// @Failure      400      {object}  response.Response          "请求参数错误"
+// @Failure      404      {object}  response.Response          "用户不存在"
+// @Router       /users/password/forgot [post]
 func (h *UserHandler) ForgotPassword(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.ForgotPasswordRequest
@@ -267,7 +404,16 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 	response.Ok(c, nil, "重置密码验证码已发送，请注意查收")
 }
 
-// VerifyPasswordResetCaptcha 验证用于重置密码的验证码，并返回重置令牌
+// VerifyPasswordResetCaptcha godoc
+// @Summary      验证重置密码验证码
+// @Description  验证用于重置密码的验证码，返回重置令牌
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.VerifyOnceCaptchaRequest                    true  "验证码信息"
+// @Success      200      {object}  response.Response{data=dto.VerifyCaptchaResponse}  "验证成功"
+// @Failure      400      {object}  response.Response                               "验证码错误"
+// @Router       /users/password/verify [post]
 func (h *UserHandler) VerifyPasswordResetCaptcha(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.VerifyOnceCaptchaRequest
@@ -284,7 +430,17 @@ func (h *UserHandler) VerifyPasswordResetCaptcha(c *gin.Context) {
 	response.Ok(c, result, "验证成功")
 }
 
-// ResetPassword 重置密码
+// ResetPassword godoc
+// @Summary      重置密码
+// @Description  使用重置令牌设置新密码
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.ResetPasswordRequest  true  "重置信息"
+// @Success      200      {object}  response.Response         "密码重置成功"
+// @Failure      400      {object}  response.Response         "请求参数错误"
+// @Failure      401      {object}  response.Response         "令牌无效或已过期"
+// @Router       /users/password/reset [post]
 func (h *UserHandler) ResetPassword(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.ResetPasswordRequest
@@ -300,7 +456,21 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	response.Ok(c, nil, "密码重置成功")
 }
 
-// UpdateUserStatus 管理员更新用户状态
+// UpdateUserStatus godoc
+// @Summary      更新用户状态
+// @Description  管理员更新用户状态（正常/禁用/锁定）
+// @Tags         管理员-用户管理
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id       path      int                          true  "用户ID"
+// @Param        request  body      dto.UpdateUserStatusRequest  true  "状态信息"
+// @Success      200      {object}  response.Response            "更新成功"
+// @Failure      400      {object}  response.Response            "请求参数错误"
+// @Failure      401      {object}  response.Response            "用户未认证"
+// @Failure      403      {object}  response.Response            "无权访问"
+// @Failure      404      {object}  response.Response            "用户不存在"
+// @Router       /admin/users/{id}/status [put]
 func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 	ctx := c.Request.Context()
 	
@@ -326,7 +496,16 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 	response.Ok(c, nil, "用户状态更新成功")
 }
 
-// RequestRecovery 请求恢复账号
+// RequestRecovery godoc
+// @Summary      请求恢复账号
+// @Description  发送账号恢复验证码
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.RequestRecoveryRequest  true  "账号信息"
+// @Success      200      {object}  response.Response           "验证码已发送"
+// @Failure      400      {object}  response.Response           "请求参数错误"
+// @Router       /users/recovery/request [post]
 func (h *UserHandler) RequestRecovery(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.RequestRecoveryRequest
@@ -341,7 +520,16 @@ func (h *UserHandler) RequestRecovery(c *gin.Context) {
 	response.Ok(c, nil, "恢复账号验证码已发送，请注意查收")
 }
 
-// VerifyRecoveryCaptcha 验证恢复账号的验证码
+// VerifyRecoveryCaptcha godoc
+// @Summary      验证恢复验证码
+// @Description  验证账号恢复验证码，返回恢复令牌
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.VerifyRecoveryCaptchaRequest                       true  "验证码信息"
+// @Success      200      {object}  response.Response{data=dto.VerifyRecoveryCaptchaResponse}  "验证成功"
+// @Failure      400      {object}  response.Response                                      "验证码错误"
+// @Router       /users/recovery/verify [post]
 func (h *UserHandler) VerifyRecoveryCaptcha(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.VerifyRecoveryCaptchaRequest
@@ -357,7 +545,17 @@ func (h *UserHandler) VerifyRecoveryCaptcha(c *gin.Context) {
 	response.Ok(c, result, "验证成功")
 }
 
-// ExecuteRecovery 执行恢复账号
+// ExecuteRecovery godoc
+// @Summary      执行账号恢复
+// @Description  使用恢复令牌执行账号恢复操作
+// @Tags         用户模块
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.ExecuteRecoveryRequest  true  "恢复令牌"
+// @Success      200      {object}  response.Response           "账号恢复成功"
+// @Failure      400      {object}  response.Response           "请求参数错误"
+// @Failure      401      {object}  response.Response           "令牌无效或已过期"
+// @Router       /users/recovery/execute [post]
 func (h *UserHandler) ExecuteRecovery(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.ExecuteRecoveryRequest

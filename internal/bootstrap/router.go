@@ -21,6 +21,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	// 导入 swagger
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "short-link/docs" // 导入生成的 docs 包
 )
 
 func initRouter(db *gorm.DB) *gin.Engine {
@@ -100,6 +104,10 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	// 使用自定义的日志和恢复中间件
 	r.Use(middleware.Logger(), middleware.Recovery())
 
+	// =============== Swagger 文档路由 ===============
+	// 访问地址: http://localhost:8080/swagger/index.html
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	
 	// =================  公开路由 (无需认证) =================
 	// 短链接跳转接口，放在根路径无前缀路由。使用令牌桶中间件实现访问限流
 	r.GET("/:shortCode", middleware.RateLimitLinkAccess(), slHandler.Redirect)
