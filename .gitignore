@@ -1,0 +1,41 @@
+# ========== 你的项目特有忽略项 ==========
+# 日志目录（包含app.log，整个目录都无需追踪）
+/logs/
+# VSCode编辑器配置（个人环境，无需共享）
+/.vscode/
+
+# ========== Go 项目通用忽略项 ==========
+# 编译生成的二进制可执行文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.out
+# 编译生成的中间文件
+*.o
+*.a
+# Go 模块缓存/构建缓存
+/go.work
+/go.work.sum
+/pkg/
+/bin/
+/obj/
+# 临时文件
+*.tmp
+*.temp
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+# Go 测试覆盖率文件
+*.out
+coverage.txt
+# 如果使用了vendor（依赖目录，可选忽略，建议提交则注释掉）
+# /vendor/
+
+# ========== 可选忽略项（根据你的需求） ==========
+# 本地配置文件（如果config.yaml包含敏感信息/本地配置，建议忽略）
+# /configs/config.yaml
+# 生成的Swagger静态文件（如果是动态生成，可选忽略）
+# /docs/swagger.json
+# /docs/swagger.yaml
