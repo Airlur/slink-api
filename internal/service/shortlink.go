@@ -17,8 +17,8 @@ import (
 	"short-link/internal/model"
 	"short-link/internal/pkg/config"
 	"short-link/internal/pkg/constant"
-	"short-link/internal/pkg/eventbus"
 	bizErrors "short-link/internal/pkg/errors"
+	"short-link/internal/pkg/eventbus"
 	"short-link/internal/pkg/generator"
 	"short-link/internal/pkg/jwt"
 	"short-link/internal/pkg/logger"
@@ -343,7 +343,18 @@ func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua strin
 
 	if locked {
 		// 3.2 获取锁成功：由我来查询数据库并回写缓存
-		defer redis.Del(ctx, lockKey) // 确保执行完毕后释放锁，TODO：这里需要改成lua脚本进行原子性操作，以防删除的是别人的锁
+		defer func() {
+			// Lua脚本：安全释放锁（仅当锁的值匹配时才删除）
+			// 防止因业务逻辑执行时间过长导致锁过期后，误删了其他线程持有的新锁
+			const releaseLockScript = `
+				if redis.call("get", KEYS[1]) == ARGV[1] then
+					return redis.call("del", KEYS[1])
+				else
+					return 0
+				end
+			`
+			redis.Client.Eval(ctx, releaseLockScript, []string{lockKey}, "1")
+		}()
 
 		// 3.2.1 缓存未命中 (Cache Miss)，查询数据库
 		shortlink, dbErr := s.shortlinkRepo.GetUniqueShortCode(ctx, shortCode, false)
@@ -413,7 +424,7 @@ func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua strin
 				// 命中缓存，处理后返回
 				if originalUrl == constant.NullCacheValue {
 					cacheStatus = "NULL" // 空值缓存
-					return "", cacheStatus, bizErrors.New(response.ShortlinkNotFound, "短链接不存在")	
+					return "", cacheStatus, bizErrors.New(response.ShortlinkNotFound, "短链接不存在")
 				}
 				// go s.recordAnalyticsByShortCode(shortCode) // 使用 shortCode 异步更新
 
@@ -610,7 +621,7 @@ func (s *shortlinkService) ExtendExpiration(ctx context.Context, user *jwt.UserI
 	// 	updates["expire_at"] = newExpireAt
 	// }
 
-	if err := s.shortlinkRepo.Update(ctx, m.ID, updates); err != nil {	
+	if err := s.shortlinkRepo.Update(ctx, m.ID, updates); err != nil {
 		logger.Error("ExtendExpiration Fail: 短链接延长有效期失败",
 			"err", err,
 			"shortCode", shortCode,

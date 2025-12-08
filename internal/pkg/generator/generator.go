@@ -35,7 +35,7 @@ func Generate(id uint64) string {
 	)
 	
 	// 步骤3: 对掩码处理后的 ID 进行 Base62 编码
-	shortCode := base62.Encode(maskedID)
+	shortCode := base62.Encode(permutedID)
 
 	logger.Debug("短码生成结果", 
 		"shortCode", shortCode, 
@@ -56,6 +56,8 @@ func Reverse(shortCode string) (uint64, error) {
 
 	// 步骤 2: 反向置换
 	// 得到的是被掩码之前的原始ID，而不是最最原始的ID
+	// 注意：因为 Generate 阶段是用 permutedID 进行 Encode 的，
+	// 所以这里 Decode 出来的就是 permutedID，直接 Unpermute 即可。
 	originalID := permutation.Unpermute(maskedPermutedID)
 
 	return originalID, nil
