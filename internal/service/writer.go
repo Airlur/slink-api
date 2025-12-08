@@ -58,70 +58,21 @@ func (s *batchWriterService) SyncRedisToDB(ctx context.Context) error {
 }
 
 // syncRawLogs 负责同步原始日志
-func (s *batchWriterService) syncRawLogsOld(ctx context.Context) error {
-	// 1. 定义一个临时的、唯一的处理中key
-	processingKey := fmt.Sprintf("logs:buffer:processing:%d", time.Now().UnixNano())
-
-	// 2. 原子性地重命名日志缓冲区，实现安全的“日志轮转”
-	err := redis.Rename(ctx, constant.RawLogBufferKey, processingKey)
-	if err != nil {
-		// 这是一种正常情况，意味着上一分钟内没有任何访问日志
-		if errors.Is(err, goRedis.Nil) || (strings.Contains(err.Error(), "no such key")) {
-			logger.Info("没有待处理的原始日志，跳过同步")
-			return nil // 没有待处理的日志，是正常情况
-		}
-		return err
-	}
-
-	// 3. 从已隔离的processingKey中安全地取出所有日志
-	logsJSON, err := redis.LRange(ctx, processingKey, 0, -1)
-	if err != nil {
-		logger.Error("从Redis获取待处理日志失败", "error", err)
-		return err
-	}
-	if len(logsJSON) == 0 {
-		redis.Del(ctx, processingKey)
-		return nil
-	}
-
-	// 4. 反序列化JSON字符串为Go结构体
-	var accessLogs []*model.AccessLog
-	for i := len(logsJSON) - 1; i >= 0; i-- { // LRange + LPush 导致顺序是反的，需要逆序遍历回来
-		var log model.AccessLog
-		if err := json.Unmarshal([]byte(logsJSON[i]), &log); err == nil {
-			accessLogs = append(accessLogs, &log)
-		}
-	}
-
-	// 5. 调用Repository层进行批量写入
-	if err := s.logRepo.CreateInBatches(ctx, accessLogs); err != nil {
-		logger.Error("批量写入原始日志到数据库失败", "error", err)
-		// 补偿机制：可以将失败的键重新写回主缓冲区
-		// redis.Rename(ctx, processingKey, rawLogBufferKey)
-		return err
-	}
-
-	// 6. 成功写入数据库后，删除临时的processingKey
-	redis.Del(ctx, processingKey)
-	logger.Info("批量同步原始日志成功", "日志条数", len(accessLogs))
-	return nil
-}
-
 func (s *batchWriterService) syncRawLogs(ctx context.Context) error {
 	// 定义一个临时的、唯一的处理中key
 	processingKey := fmt.Sprintf("logs:buffer:processing:%d", time.Now().UnixNano())
 
 	// 原子性重命名日志缓冲区，实现安全的“日志轮转”
-	err := redis.Rename(ctx, constant.RawLogBufferKey, processingKey)
+	err := redis.Rename(ctx, constant.LogBufferKey, processingKey)
 	if err != nil {
 		if errors.Is(err, goRedis.Nil) || strings.Contains(err.Error(), "no such key") {
-			logger.Info("没有待处理的原始日志，跳过同步")
+			// logger.Info("没有待处理的原始日志，跳过同步") // 降低日志噪音
 			return nil
 		}
 		return err
 	}
 
-	// 【核心修改2】分批次从Redis读取日志（每批500条）
+	// 分批次从Redis读取日志（每批500条）
 	batchSize := 500
 	var allAccessLogs []*model.AccessLog
 	offset := 0 // Redis列表的起始偏移量
@@ -131,6 +82,7 @@ func (s *batchWriterService) syncRawLogs(ctx context.Context) error {
 		logsJSON, err := redis.LRange(ctx, processingKey, int64(offset), int64(offset+batchSize-1))
 		if err != nil {
 			logger.Error("从Redis分批获取日志失败", "error", err, "offset", offset)
+			s.restoreRawLogs(ctx, processingKey) // 尝试恢复
 			return err
 		}
 
@@ -139,11 +91,16 @@ func (s *batchWriterService) syncRawLogs(ctx context.Context) error {
 			break
 		}
 
-		// 反序列化当前批次日志（原有逻辑保留，逆序处理）
+		// 反序列化当前批次日志（Redis List是先进先出还是后进先出取决于Push方式，
+		// 这里假设我们关心的是将数据全部入库，顺序只要相对一致即可。
+		// 如果是 LPush + LRange，则 logsJSON[0] 是最新的。
+		// 入库顺序通常不强制要求严格时间序，只要都进去就行。）
 		for i := len(logsJSON) - 1; i >= 0; i-- {
 			var log model.AccessLog
 			if err := json.Unmarshal([]byte(logsJSON[i]), &log); err == nil {
 				allAccessLogs = append(allAccessLogs, &log)
+			} else {
+				logger.Error("日志反序列化失败", "data", logsJSON[i])
 			}
 		}
 
@@ -151,17 +108,17 @@ func (s *batchWriterService) syncRawLogs(ctx context.Context) error {
 		offset += batchSize
 	}
 
-	// 若没有日志，直接删除processingKey
+	// 若没有日志（可能全是坏数据），直接删除processingKey
 	if len(allAccessLogs) == 0 {
 		redis.Del(ctx, processingKey)
 		return nil
 	}
 
-	// 调用Repository分批写入（复用步骤1的修改）
+	// 调用Repository分批写入
 	if err := s.logRepo.CreateInBatches(ctx, allAccessLogs); err != nil {
 		logger.Error("批量写入原始日志到数据库失败", "error", err)
-		// 【可选补偿】若写入失败，将processingKey重命名回原缓冲区（避免日志丢失）
-		// redis.Rename(ctx, processingKey, constant.RawLogBufferKey)
+		// 写入失败，必须将日志恢复回 Redis，避免数据丢失
+		s.restoreRawLogs(ctx, processingKey)
 		return err
 	}
 
@@ -170,137 +127,280 @@ func (s *batchWriterService) syncRawLogs(ctx context.Context) error {
 	logger.Info("批量同步原始日志成功", "总日志条数", len(allAccessLogs))
 	return nil
 }
+
+// restoreRawLogs 将处理中的日志恢复回主缓冲区
+func (s *batchWriterService) restoreRawLogs(ctx context.Context, processingKey string) {
+	// 获取所有待恢复的日志
+	logs, err := redis.LRange(ctx, processingKey, 0, -1)
+	if err != nil || len(logs) == 0 {
+		return
+	}
+
+	// 将日志追加回主缓冲区的末尾（RPush），保持大致的时间顺序
+	// 注意：go-redis 的 RPush 支持 []interface{}，我们需要转换一下
+	args := make([]interface{}, len(logs))
+	for i, v := range logs {
+		args[i] = v
+	}
+	
+	if err := redis.Client.RPush(ctx, constant.LogBufferKey, args...).Err(); err != nil {
+		logger.Error("严重错误：日志恢复失败，数据可能丢失！", "key", processingKey, "error", err)
+	} else {
+		logger.Warn("数据库写入失败，已将日志恢复回Redis缓冲区", "count", len(logs))
+		// 恢复成功后，可以删除 processingKey，或者留着让下次重试（Rename会覆盖）。
+		// 既然已经 RPush 回去了，就应该删除 processingKey，否则下次 Rename 会把 processingKey 里的旧数据丢弃（如果它是目标），
+		// 或者如果下次 Rename 成功了，我们这里残留的 processingKey 就变成了垃圾数据。
+		// 这里选择删除 processingKey。
+		redis.Del(ctx, processingKey)
+	}
+}
+
+
 // syncStatsCounters 负责同步所有统计计数器
 func (s *batchWriterService) syncStatsCounters(ctx context.Context) error {
-	// 定义需要扫描的key模式
-	patterns := []string{"stats:total:*", "stats:daily:*", "stats:region:*", "stats:device:*"}
-	var allKeys []string
-	for _, pattern := range patterns {
-		// 注意：生产环境如果Key数量巨大，应使用SCAN代替KEYS以避免阻塞
-		keys, err := redis.Client.Keys(ctx, pattern).Result()
-		if err != nil {
-			logger.Warn("扫描统计key失败", "error", err, "pattern", pattern)
-			continue
+	// 定义各维度的批处理缓冲区
+	const batchSize = 500
+	var (
+		// Total Clicks: map[shortCode]clicks
+		totalClickUpdates = make(map[string]int64)
+		
+		// Daily Stats: slice of models
+		dailyStatsBuffer []model.StatsDaily
+		
+		// Region Stats: slice of models
+		regionStatsBuffer []model.StatsRegionDaily
+		
+		// Device Stats: slice of models
+		deviceStatsBuffer []model.StatsDeviceDaily
+		
+		// 记录当前批次处理过的临时Key，用于写入成功后删除或失败后恢复
+		// map[tempKey]originalKey
+		processedKeys = make(map[string]string)
+	)
+
+	// 定义数据恢复函数（在数据库写入失败时调用）
+	restoreBatch := func(keys map[string]string) {
+		for tempKey, originalKey := range keys {
+			s.restoreStats(ctx, tempKey, originalKey)
 		}
-		allKeys = append(allKeys, keys...)
 	}
 
-	if len(allKeys) == 0 {
-		return nil
-	}
+	// 定义Flush函数：将缓冲区数据写入数据库
+	flush := func() error {
+		var errOccurred error
 
-	// 遍历所有待处理的统计key
-	for _, key := range allKeys {
-		processingKey := fmt.Sprintf("%s:processing:%d", key, time.Now().UnixNano())
-
-		// 原子性地重命名，将数据“收割”过来
-		if err := redis.Rename(ctx, key, processingKey); err != nil {
-			if errors.Is(err, goRedis.Nil) {
-				continue
+		// 1. 批量更新总点击数 (Shortlink表)
+		// 由于GORM不支持批量更新不同行的不同值，这里我们对总点击数只能逐个更新，或者按点击数分组更新。
+		// 为了简单和安全，我们这里先逐个更新，但因为是在 Flush 里，至少减少了外层循环的逻辑复杂度。
+		// *优化方向*：可以使用 CASE WHEN 语句拼接原生 SQL 实现一次 DB 调用更新多行。
+		// 但考虑到 TotalClicks 更新频率不如日志高（因为只有增量），且 GORM 拼接大 SQL 有风险，
+		// 这里我们采用 "分组并发" 或 "简单遍历"。
+		// 鉴于 syncStatsCounters 是串行的，我们简单遍历。
+		for code, clicks := range totalClickUpdates {
+			if err := s.db.WithContext(ctx).Model(&model.Shortlink{}).
+				Where("short_code = ?", code).
+				UpdateColumn("click_count", gorm.Expr("click_count + ?", clicks)).Error; err != nil {
+				logger.Error("更新总点击数失败", "short_code", code, "error", err)
+				errOccurred = err
 			}
-			logger.Warn("重命名统计key失败", "error", err, "key", key)
-			continue
 		}
 
-		// 获取收割过来的哈希表中的所有数据
-		dataMap, err := redis.HGetAll(ctx, processingKey)
-		if err != nil {
-			logger.Error("HGetAll 统计数据失败", "error", err, "key", processingKey)
-			continue
+		// 2. 批量写入每日统计
+		if len(dailyStatsBuffer) > 0 {
+			if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}},
+				DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
+			}).Create(&dailyStatsBuffer).Error; err != nil {
+				logger.Error("批量写入每日统计失败", "error", err)
+				errOccurred = err
+			}
 		}
 
-		// 根据key的前缀，分发到不同的处理函数进行批量数据库更新
-		var dbErr error
-		switch {
-		case strings.HasPrefix(key, "stats:total:"):
-			dbErr = s.batchUpdateTotalClicks(ctx, key, dataMap)
-		case strings.HasPrefix(key, "stats:daily:"):
-			dbErr = s.batchUpdateDailyStats(ctx, key, dataMap)
-		case strings.HasPrefix(key, "stats:region:"):
-			dbErr = s.batchUpdateRegionStats(ctx, key, dataMap)
-		case strings.HasPrefix(key, "stats:device:"):
-			dbErr = s.batchUpdateDeviceStats(ctx, key, dataMap)
+		// 3. 批量写入地域统计
+		if len(regionStatsBuffer) > 0 {
+			if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "province"}, {Name: "city"}},
+				DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
+			}).Create(&regionStatsBuffer).Error; err != nil {
+				logger.Error("批量写入地域统计失败", "error", err)
+				errOccurred = err
+			}
 		}
 
-		// 根据数据库操作结果决定是否删除processingKey
-		if dbErr != nil {
-			logger.Error("批量更新数据库统计失败", "error", dbErr, "key", processingKey)
-			// TODO: 补偿机制，例如将 processingKey 重命名回原名
+		// 4. 批量写入设备统计
+		if len(deviceStatsBuffer) > 0 {
+			if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "device_type"}, {Name: "os_version"}, {Name: "browser"}},
+				DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
+			}).Create(&deviceStatsBuffer).Error; err != nil {
+				logger.Error("批量写入设备统计失败", "error", err)
+				errOccurred = err
+			}
+		}
+
+		// 5. 善后处理
+		if errOccurred != nil {
+			// 如果有错误，尝试恢复这一批次的所有Key
+			logger.Warn("批量写入部分失败，尝试恢复数据", "keys_count", len(processedKeys))
+			restoreBatch(processedKeys)
 		} else {
-			redis.Del(ctx, processingKey)
+			// 如果成功，删除所有临时Key
+			pipe := redis.Client.Pipeline()
+			for tempKey := range processedKeys {
+				pipe.Del(ctx, tempKey)
+			}
+			pipe.Exec(ctx)
+		}
+
+		// 6. 清空缓冲区
+		totalClickUpdates = make(map[string]int64)
+		dailyStatsBuffer = dailyStatsBuffer[:0]
+		regionStatsBuffer = regionStatsBuffer[:0]
+		deviceStatsBuffer = deviceStatsBuffer[:0]
+		processedKeys = make(map[string]string)
+
+		return errOccurred
+	}
+
+	// -----------------------------------------------------------
+	// 核心扫描循环
+	// -----------------------------------------------------------
+	patterns := []string{"stats:total:*", "stats:daily:*", "stats:region:*", "stats:device:*"}
+
+	for _, pattern := range patterns {
+		var cursor uint64
+		var keys []string
+		var err error
+
+		for {
+			// SCAN 1000 keys at a time
+			keys, cursor, err = redis.Client.Scan(ctx, cursor, pattern, 1000).Result()
+			if err != nil {
+				logger.Error("Redis Scan 失败", "pattern", pattern, "error", err)
+				break 
+			}
+
+			for _, key := range keys {
+				// 1. 生成临时Key并重命名 (Atomically Move)
+				processingKey := fmt.Sprintf("%s:processing:%d", key, time.Now().UnixNano())
+				if err := redis.Rename(ctx, key, processingKey); err != nil {
+					// 只有在 Key 不存在时（被删或过期）才忽略错误，其他错误需记录
+					if !errors.Is(err, goRedis.Nil) && !strings.Contains(err.Error(), "no such key") {
+						logger.Warn("Rename 统计Key失败", "key", key, "error", err)
+					}
+					continue
+				}
+
+				// 2. 获取数据
+				dataMap, err := redis.HGetAll(ctx, processingKey)
+				if err != nil {
+					logger.Error("HGetAll 统计数据失败", "key", processingKey, "error", err)
+					s.restoreStats(ctx, processingKey, key) // 立即尝试单条恢复
+					continue
+				}
+				if len(dataMap) == 0 {
+					redis.Del(ctx, processingKey)
+					continue
+				}
+
+				// 3. 将处理中的 Key 记录下来，以便 Flush 时处理
+				processedKeys[processingKey] = key
+
+				// 4. 解析数据并放入缓冲区
+				//    注意：这里我们不需要立即 Handle DB Error，因为我们只是 append 到 slice
+				switch {
+				case strings.HasPrefix(key, "stats:total:"):
+					s.appendToTotalClicks(key, dataMap, totalClickUpdates)
+				case strings.HasPrefix(key, "stats:daily:"):
+					s.appendToDailyStats(key, dataMap, &dailyStatsBuffer)
+				case strings.HasPrefix(key, "stats:region:"):
+					s.appendToRegionStats(key, dataMap, &regionStatsBuffer)
+				case strings.HasPrefix(key, "stats:device:"):
+					s.appendToDeviceStats(key, dataMap, &deviceStatsBuffer)
+				}
+
+				// 5. 检查是否需要 Flush (任意缓冲区满)
+				//    由于 patterns 是顺序处理的，buffer 增长通常集中在某一种类型上
+				if len(totalClickUpdates) >= batchSize ||
+					len(dailyStatsBuffer) >= batchSize ||
+					len(regionStatsBuffer) >= batchSize ||
+					len(deviceStatsBuffer) >= batchSize {
+					
+					flush() // 执行写入并清空
+				}
+			}
+
+			if cursor == 0 {
+				break
+			}
 		}
 	}
-	logger.Info("批量同步统计计数器成功", "处理Key数量", len(allKeys))
+
+	// 循环结束后，处理剩余的数据
+	if len(processedKeys) > 0 {
+		flush()
+	}
+
 	return nil
 }
 
-// --- 具体的批量更新辅助函数 ---
+// --- Append Helpers (将原有 Update 逻辑改为 Append) ---
 
-// batchUpdateTotalClicks 批量更新主表的总点击数
-func (s *batchWriterService) batchUpdateTotalClicks(ctx context.Context, redisKey string, dataMap map[string]string) error {
-	shortCode := strings.Split(redisKey, ":")[2]
-	clicks, _ := strconv.ParseInt(dataMap["clicks"], 10, 64)
-	if clicks == 0 {
-		return nil
+func (s *batchWriterService) appendToTotalClicks(redisKey string, dataMap map[string]string, buffer map[string]int64) {
+	// key: stats:total:{short_code}
+	parts := strings.Split(redisKey, ":")
+	if len(parts) < 3 {
+		return
 	}
-
-	// 使用 gorm.Expr 实现原子性的 "click_count = click_count + ?"
-	return s.db.WithContext(ctx).Model(&model.Shortlink{}).Where("short_code = ?", shortCode).
-		UpdateColumn("click_count", gorm.Expr("click_count + ?", clicks)).Error
+	shortCode := parts[2]
+	clicks, _ := strconv.ParseInt(dataMap["clicks"], 10, 64)
+	if clicks > 0 {
+		buffer[shortCode] += clicks // 聚合内存中的点击数（虽然一般只有一个，但防万一）
+	}
 }
 
-// batchUpdateDailyStats 批量更新每日统计表
-func (s *batchWriterService) batchUpdateDailyStats(ctx context.Context, redisKey string, dataMap map[string]string) error {
-	shortCode := strings.Split(redisKey, ":")[2]
+func (s *batchWriterService) appendToDailyStats(redisKey string, dataMap map[string]string, buffer *[]model.StatsDaily) {
+	// key: stats:daily:{short_code}
+	parts := strings.Split(redisKey, ":")
+	if len(parts) < 3 {
+		return
+	}
+	shortCode := parts[2]
 
-	// 准备批量更新的数据切片
-	var statsToUpsert []model.StatsDaily
 	for dateStr, clicksStr := range dataMap {
 		clicks, _ := strconv.ParseInt(clicksStr, 10, 64)
 		date, _ := time.Parse("2006-01-02", dateStr)
 		if clicks > 0 {
-			statsToUpsert = append(statsToUpsert, model.StatsDaily{
+			*buffer = append(*buffer, model.StatsDaily{
 				ShortCode: shortCode,
 				Date:      date,
 				Clicks:    uint(clicks),
 			})
 		}
 	}
-
-	// 如果有数据需要更新，则执行批量 ON DUPLICATE KEY UPDATE
-	if len(statsToUpsert) > 0 {
-		return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}},
-			// 当唯一键冲突时，将现有的 clicks 字段加上新传入的值
-			DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
-		}).Create(&statsToUpsert).Error
-	}
-	return nil
 }
 
-// batchUpdateRegionStats 批量更新地域统计表
-func (s *batchWriterService) batchUpdateRegionStats(ctx context.Context, redisKey string, dataMap map[string]string) error {
+func (s *batchWriterService) appendToRegionStats(redisKey string, dataMap map[string]string, buffer *[]model.StatsRegionDaily) {
+	// key: stats:region:{short_code}:{date}
 	parts := strings.Split(redisKey, ":")
 	if len(parts) < 4 {
-		return fmt.Errorf("invalid region stats key: %s", redisKey)
+		return
 	}
 	shortCode, dateStr := parts[2], parts[3]
 	date, _ := time.Parse("2006-01-02", dateStr)
 
-	var statsToUpsert []model.StatsRegionDaily
 	for regionKey, clicksStr := range dataMap {
 		clicks, _ := strconv.ParseInt(clicksStr, 10, 64)
-		regionParts := strings.Split(regionKey, ":")
-		if len(regionParts) < 1 || clicks == 0 {
+		if clicks == 0 {
 			continue
 		}
-
+		regionParts := strings.Split(regionKey, ":") // Province:City
 		province := regionParts[0]
-		city := "Unknown" // 默认值
+		city := "Unknown"
 		if len(regionParts) > 1 {
 			city = regionParts[1]
 		}
-		statsToUpsert = append(statsToUpsert, model.StatsRegionDaily{
+		*buffer = append(*buffer, model.StatsRegionDaily{
 			ShortCode: shortCode,
 			Date:      date,
 			Province:  province,
@@ -308,34 +408,28 @@ func (s *batchWriterService) batchUpdateRegionStats(ctx context.Context, redisKe
 			Clicks:    uint(clicks),
 		})
 	}
-
-	if len(statsToUpsert) > 0 {
-		return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "province"}, {Name: "city"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
-		}).Create(&statsToUpsert).Error
-	}
-	return nil
 }
 
-// batchUpdateDeviceStats 批量更新设备统计表
-func (s *batchWriterService) batchUpdateDeviceStats(ctx context.Context, redisKey string, dataMap map[string]string) error {
+func (s *batchWriterService) appendToDeviceStats(redisKey string, dataMap map[string]string, buffer *[]model.StatsDeviceDaily) {
+	// key: stats:device:{short_code}:{date}
 	parts := strings.Split(redisKey, ":")
 	if len(parts) < 4 {
-		return fmt.Errorf("invalid device stats key: %s", redisKey)
+		return
 	}
 	shortCode, dateStr := parts[2], parts[3]
 	date, _ := time.Parse("2006-01-02", dateStr)
 
-	var statsToUpsert []model.StatsDeviceDaily
 	for deviceKey, clicksStr := range dataMap {
 		clicks, _ := strconv.ParseInt(clicksStr, 10, 64)
-		deviceParts := strings.Split(deviceKey, ":")
-		if len(deviceParts) < 3 || clicks == 0 {
+		if clicks == 0 {
 			continue
 		}
-
-		statsToUpsert = append(statsToUpsert, model.StatsDeviceDaily{
+		// deviceKey: Device:OS:Browser
+		deviceParts := strings.Split(deviceKey, ":")
+		if len(deviceParts) < 3 {
+			continue
+		}
+		*buffer = append(*buffer, model.StatsDeviceDaily{
 			ShortCode:  shortCode,
 			Date:       date,
 			DeviceType: deviceParts[0],
@@ -344,12 +438,27 @@ func (s *batchWriterService) batchUpdateDeviceStats(ctx context.Context, redisKe
 			Clicks:     uint(clicks),
 		})
 	}
+}
 
-	if len(statsToUpsert) > 0 {
-		return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "device_type"}, {Name: "os_version"}, {Name: "browser"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + VALUES(clicks)")}),
-		}).Create(&statsToUpsert).Error
+// restoreStats 将统计数据恢复回原Key
+func (s *batchWriterService) restoreStats(ctx context.Context, processingKey, originalKey string) {
+	dataMap, err := redis.HGetAll(ctx, processingKey)
+	if err != nil || len(dataMap) == 0 {
+		return
 	}
-	return nil
+
+	pipe := redis.Client.Pipeline()
+	for field, valStr := range dataMap {
+		val, _ := strconv.ParseInt(valStr, 10, 64)
+		if val > 0 {
+			// 使用 HIncrBy 将数据加回去，这样即使 originalKey 在此期间有了新数据，也是累加而不是覆盖
+			pipe.HIncrBy(ctx, originalKey, field, val)
+		}
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		logger.Error("严重错误：统计数据恢复失败！", "key", originalKey, "error", err)
+	} else {
+		logger.Warn("数据库写入失败，已将统计数据恢复回Redis", "key", originalKey)
+		redis.Del(ctx, processingKey)
+	}
 }
