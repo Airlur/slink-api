@@ -744,21 +744,33 @@ func convertShortlinkToDetailDTO(m *model.Shortlink) *dto.ShortlinkDetailRespons
 
 // validateAndFormatURL 对原始URL进行安全校验和格式化
 func validateAndFormatURL(originalURL string) (string, error) {
-	// 长度校验
+	// 0. 预处理：去除首尾空格
+	originalURL = strings.TrimSpace(originalURL)
+
+	// 1. 长度校验
 	if len(originalURL) > 2048 {
 		return "", bizErrors.New(response.InvalidParam, "原始链接长度不能超过2048个字符")
 	}
 
-	// 协议处理
-	if !strings.HasPrefix(originalURL, "http://") && !strings.HasPrefix(originalURL, "https://") {
+	// 2. 协议处理：检查是否已有 http/https 前缀（忽略大小写）
+	// 必须先补全协议，url.ParseRequestURI 才能正确解析出 Host
+	lowerURL := strings.ToLower(originalURL)
+	if !strings.HasPrefix(lowerURL, "http://") && !strings.HasPrefix(lowerURL, "https://") {
 		originalURL = "https://" + originalURL
 	}
 
-	// 合法性与防嵌套校验
+	// 3. 合法性与防嵌套校验
 	parsedURL, err := url.ParseRequestURI(originalURL)
 	if err != nil {
 		return "", bizErrors.New(response.InvalidParam, "无效的URL格式")
 	}
+
+	// 4. Host 校验：必须包含 "." 或者是 "localhost"
+	// 这一步必须在 ParseRequestURI 之后，因为只有解析出 Host 才能准确判断
+	if !strings.Contains(parsedURL.Host, ".") && parsedURL.Host != "localhost" {
+		return "", bizErrors.New(response.InvalidParam, "无效的URL格式")
+	}
+
 	if strings.EqualFold(parsedURL.Host, config.GlobalConfig.App.Domain) {
 		return "", bizErrors.New(response.LinkNestingNotAllowed, "当前网址已经是短链接，无需再次缩短")
 	}
