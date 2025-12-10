@@ -110,7 +110,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	// =============== Swagger 文档路由 ===============
 	// 访问地址: http://localhost:8080/swagger/index.html
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	
+
 	// =================  公开路由 (无需认证) =================
 	// 短链接跳转接口，放在根路径无前缀路由。使用令牌桶中间件实现访问限流
 	r.GET("/:shortCode", middleware.RateLimitLinkAccess(), slHandler.Redirect)
@@ -206,7 +206,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 				authSlRoutes.GET("/:short_code/stats/cities", statsHandler.GetCities)
 				authSlRoutes.GET("/:short_code/stats/devices", statsHandler.GetDevices)
 				authSlRoutes.GET("/:short_code/stats/sources", statsHandler.GetSources)
-				authSlRoutes.GET("/:short_code/logs", statsHandler.GetLogs)
+				authSlRoutes.GET("/:short_code/stats/logs", statsHandler.GetLogs)
 			}
 		}
 
