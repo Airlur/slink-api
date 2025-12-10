@@ -147,3 +147,9 @@ type UserResponse struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 }
 
+// UserListResponse 用于 Swagger 文档生成分页响应
+type UserListResponse struct {
+	Data       []UserResponse            `json:"data"`
+	Pagination common.PaginationResponse `json:"pagination"`
+}
+

@@ -3,7 +3,9 @@ package dto
 import (
 	"time"
 
+	"short-link/internal/dto/common"
 )
+
 // GuestCreateShortlinkRequest 游客创建短链接的请求体
 type GuestCreateShortlinkRequest struct {
 	OriginalUrl string `json:"originalUrl" binding:"required"` // 只允许提供原始URL，且必须是合法的URL
@@ -84,4 +86,10 @@ type ShareInfo struct {
 	Title string `json:"title"`
 	Desc  string `json:"desc"`
 	Image string `json:"image"`
+}
+
+// ShortlinkListResponse 用于 Swagger 文档生成分页响应
+type ShortlinkListResponse struct {
+	Data       []ShortlinkDetailResponse `json:"data"`
+	Pagination common.PaginationResponse `json:"pagination"`
 }

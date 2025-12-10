@@ -1,9 +1,65 @@
 basePath: /api/v1
 definitions:
+  common.PaginationResponse:
+    properties:
+      limit:
+        description: 每页数量
+        type: integer
+      page:
+        description: 当前页码
+        type: integer
+      total:
+        description: 数据总条数
+        type: integer
+    type: object
+  dto.AccessLogListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.AccessLog'
+        type: array
+      pagination:
+        $ref: '#/definitions/common.PaginationResponse'
+    type: object
+  dto.AddTagRequest:
+    properties:
+      tagName:
+        description: 标签名，必填，长度限制1-30
+        maxLength: 30
+        minLength: 1
+        type: string
+    required:
+    - tagName
+    type: object
   dto.CheckExistenceResponse:
     properties:
       exists:
         type: boolean
+    type: object
+  dto.CreateShareRequest:
+    description: '...'
+    properties:
+      shareDesc:
+        description: 分享描述
+        type: string
+      shareImage:
+        description: 分享封面图URL
+        type: string
+      shareTitle:
+        description: 分享标题
+        type: string
+      shortCode:
+        description: 关联短码
+        type: string
+    type: object
+  dto.DeviceStatsResponse:
+    properties:
+      name:
+        description: 设备/系统/浏览器名称
+        type: string
+      value:
+        description: 对应的点击量
+        type: integer
     type: object
   dto.ExecuteRecoveryRequest:
     properties:
@@ -11,6 +67,20 @@ definitions:
         type: string
     required:
     - recoveryToken
+    type: object
+  dto.ExtendShortlinkExpirationRequest:
+    properties:
+      expiresIn:
+        description: 限制了只能传入指定的有效期字符串
+        enum:
+        - 7d
+        - 30d
+        - 90d
+        - 1y
+        - never
+        type: string
+    required:
+    - expiresIn
     type: object
   dto.ForgotPasswordRequest:
     properties:
@@ -24,6 +94,38 @@ definitions:
         type: string
     required:
     - account
+    type: object
+  dto.GetShareInfoResponse:
+    properties:
+      shareDesc:
+        description: 分享描述
+        type: string
+      shareImage:
+        description: 分享封面图URL
+        type: string
+      shareTitle:
+        description: 分享标题
+        type: string
+      shortCode:
+        description: 关联短码
+        type: string
+    type: object
+  dto.GlobalStatsResponse:
+    properties:
+      activeUsers:
+        description: 近30天活跃用户数
+        type: integer
+      topLinks:
+        description: Top 5 热门短链接
+        items:
+          $ref: '#/definitions/dto.TopLinkInfo'
+        type: array
+      totalClicks:
+        description: 平台总点击量
+        type: integer
+      totalShortlinks:
+        description: 平台短链接总数
+        type: integer
     type: object
   dto.LoginRequest:
     properties:
@@ -46,12 +148,36 @@ definitions:
       user:
         $ref: '#/definitions/dto.UserResponse'
     type: object
+  dto.OverviewStatsResponse:
+    properties:
+      clicksToday:
+        description: 今日点击量
+        type: integer
+      topRegion:
+        description: 点击量最高的地域（省份/国家）
+        type: string
+      topSource:
+        description: 点击量最高的来源（暂未实现）
+        type: string
+      totalClicks:
+        description: 短链接历史总点击量
+        type: integer
+    type: object
   dto.RefreshTokenRequest:
     properties:
       refreshToken:
         type: string
     required:
     - refreshToken
+    type: object
+  dto.RegionStatsResponse:
+    properties:
+      name:
+        description: 地域名称（如 "广东省" 或 "深圳市"）
+        type: string
+      value:
+        description: 对应的点击量
+        type: integer
     type: object
   dto.RegisterRequest:
     properties:
@@ -80,6 +206,13 @@ definitions:
     - password
     - username
     type: object
+  dto.RemoveTagRequest:
+    properties:
+      tagName:
+        type: string
+    required:
+    - tagName
+    type: object
   dto.RequestRecoveryRequest:
     properties:
       account:
@@ -104,6 +237,179 @@ definitions:
     - password
     - resetToken
     type: object
+  dto.SendCaptchaRequest:
+    properties:
+      account:
+        description: 手机号或邮箱
+        type: string
+      scene:
+        description: 场景 (register/login/reset_pwd等)
+        type: string
+      type:
+        description: 类型，默认为email
+        enum:
+        - sms
+        - email
+        type: string
+    required:
+    - account
+    - scene
+    type: object
+  dto.SendCaptchaResponse:
+    properties:
+      expire_second:
+        description: 验证码有效期（秒）
+        type: integer
+      next_send_second:
+        description: 下次可发送的冷却时间（秒）
+        type: integer
+    type: object
+  dto.ShareInfo:
+    properties:
+      desc:
+        type: string
+      image:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.ShareResponse:
+    description: 响应给客户端的 Share 信息，屏蔽了敏感字段
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      shareDesc:
+        description: 分享描述
+        type: string
+      shareImage:
+        description: 分享封面图URL
+        type: string
+      shareTitle:
+        description: 分享标题
+        type: string
+      shortCode:
+        description: 关联短码
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.ShortlinkDetailResponse:
+    properties:
+      clickCount:
+        type: integer
+      created_at:
+        type: string
+      expireAt:
+        type: string
+      originalUrl:
+        type: string
+      share:
+        allOf:
+        - $ref: '#/definitions/dto.ShareInfo'
+        description: 关联的分享信息
+      shortCode:
+        type: string
+      shortUrl:
+        type: string
+      status:
+        type: integer
+      tags:
+        description: 关联的标签名列表
+        items:
+          type: string
+        type: array
+    type: object
+  dto.ShortlinkListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.ShortlinkDetailResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/common.PaginationResponse'
+    type: object
+  dto.ShortlinkResponse:
+    description: 响应给客户端的 Shortlink 信息，屏蔽了敏感字段
+    properties:
+      clickCount:
+        description: 点击量统计
+        type: integer
+      created_at:
+        type: string
+      expireAt:
+        description: 过期时间（NULL=永久）
+        type: string
+      id:
+        type: integer
+      isCustom:
+        description: 是否为自定义短码（1=是）
+        type: integer
+      isHot:
+        description: 是否为热点短码（1=是，日访问≥1000）
+        type: integer
+      lastWarnAt:
+        description: 最近一次失效预警发送时间
+        type: string
+      originalUrl:
+        description: 原始长链接（URLEncode编码）
+        type: string
+      originalUrlMd5:
+        description: 原始长链接的MD5摘要
+        type: string
+      shortCode:
+        description: 短码（Base62，区分大小写）
+        type: string
+      shortUrl:
+        description: 完整的短链接URL
+        type: string
+      status:
+        description: 状态（1=有效，0=失效）
+        type: integer
+      updated_at:
+        type: string
+      userId:
+        description: 关联用户ID（管理员为0）
+        type: integer
+    type: object
+  dto.SourceStatsResponse:
+    properties:
+      name:
+        description: 来源渠道名称
+        type: string
+      value:
+        description: 对应的点击量
+        type: integer
+    type: object
+  dto.TagListResponse:
+    properties:
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.TopLinkInfo:
+    properties:
+      clickCount:
+        description: 点击量
+        type: integer
+      originalUrl:
+        description: 原始链接（可选）
+        type: string
+      shortCode:
+        description: 短码
+        type: string
+    type: object
+  dto.TrendStatsResponse:
+    properties:
+      clicks:
+        description: 当日点击量
+        type: integer
+      date:
+        description: 日期 (YYYY-MM-DD)
+        type: string
+    type: object
   dto.UpdatePasswordRequest:
     properties:
       newPassword:
@@ -115,6 +421,70 @@ definitions:
     required:
     - newPassword
     - oldPassword
+    type: object
+  dto.UpdateShareInfoRequest:
+    properties:
+      shareDesc:
+        description: 分享描述
+        maxLength: 100
+        type: string
+      shareImage:
+        description: 分享封面图URL
+        type: string
+      shareTitle:
+        description: 分享标题
+        maxLength: 50
+        type: string
+    type: object
+  dto.UpdateShareRequest:
+    description: '...'
+    properties:
+      shareDesc:
+        description: 分享描述
+        type: string
+      shareImage:
+        description: 分享封面图URL
+        type: string
+      shareTitle:
+        description: 分享标题
+        type: string
+      shortCode:
+        description: 关联短码
+        type: string
+    type: object
+  dto.UpdateShortlinkRequest:
+    description: '...'
+    properties:
+      expiresIn:
+        enum:
+        - 7d
+        - 30d
+        - 90d
+        - 1y
+        - never
+        type: string
+      originalUrl:
+        description: 原始长链接（URLEncode编码）
+        type: string
+      status:
+        description: 状态（1=有效，0=失效）
+        enum:
+        - 0
+        - 1
+        type: integer
+    type: object
+  dto.UpdateShortlinkStatusRequest:
+    properties:
+      status:
+        description: |-
+          使用指针和 binding:"required" 确保该字段必须被传入
+          oneof=0 1 限制了状态值只能是 0 (失效) 或 1 (有效)
+        enum:
+        - 0
+        - 1
+        type: integer
+    required:
+    - status
     type: object
   dto.UpdateUserRequest:
     properties:
@@ -146,6 +516,37 @@ definitions:
     required:
     - status
     type: object
+  dto.UserCreateShortlinkRequest:
+    properties:
+      expiresIn:
+        enum:
+        - 1h
+        - 24h
+        - 7d
+        - 30d
+        - 90d
+        - 1y
+        - never
+        type: string
+      originalUrl:
+        type: string
+      shortCode:
+        description: 'omitempty: 可选; alphanum: 只能是字母和数字; min/max: 长度限制'
+        maxLength: 8
+        minLength: 6
+        type: string
+    required:
+    - originalUrl
+    type: object
+  dto.UserListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.UserResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/common.PaginationResponse'
+    type: object
   dto.UserResponse:
     properties:
       avatar:
@@ -168,6 +569,20 @@ definitions:
         type: integer
       username:
         type: string
+    type: object
+  dto.VerifyCaptchaRequest:
+    properties:
+      account:
+        type: string
+      captcha:
+        description: 验证码通常为6位
+        type: string
+      scene:
+        type: string
+    required:
+    - account
+    - captcha
+    - scene
     type: object
   dto.VerifyCaptchaResponse:
     properties:
@@ -211,6 +626,45 @@ definitions:
         description: 返回一次性的账号恢复令牌
         type: string
     type: object
+  model.AccessLog:
+    properties:
+      accessedAt:
+        description: 访问时间
+        type: string
+      browser:
+        description: 解析出的浏览器
+        type: string
+      channel:
+        description: 访问来源渠道
+        type: string
+      city:
+        description: 解析出的地理位置（城市）
+        type: string
+      deviceType:
+        description: 解析出的设备类型（PC/Mobile/Tablet/Other）
+        type: string
+      id:
+        description: 日志唯一标识
+        type: integer
+      ip:
+        description: 访问IP地址
+        type: string
+      osVersion:
+        description: 解析出的操作系统
+        type: string
+      province:
+        description: 解析出的地理位置（省份）
+        type: string
+      shortCode:
+        description: 关联的短码
+        type: string
+      userAgent:
+        description: 设备User-Agent
+        type: string
+      userID:
+        description: 访问者用户ID（0代表未登录）
+        type: integer
+    type: object
   response.Response:
     properties:
       code:
@@ -236,6 +690,65 @@ info:
   title: 短链接服务 API
   version: "1.0"
 paths:
+  /{shortCode}:
+    get:
+      description: 根据短码重定向到原始URL，同时记录访问统计
+      parameters:
+      - description: 短码
+        in: path
+        name: shortCode
+        required: true
+        type: string
+      produces:
+      - text/html
+      responses:
+        "302":
+          description: 重定向到原始URL
+          schema:
+            type: string
+        "404":
+          description: 短链接不存在
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 短链接重定向
+      tags:
+      - 短链接
+  /admin/stats/global:
+    get:
+      description: 获取平台级别的全局统计数据（仅管理员可访问）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.GlobalStatsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无管理员权限
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取平台全局统计
+      tags:
+      - 统计
   /admin/users:
     get:
       consumes:
@@ -266,7 +779,12 @@ paths:
         "200":
           description: 获取成功
           schema:
-            $ref: '#/definitions/response.Response'
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserListResponse'
+              type: object
         "401":
           description: 用户未认证
           schema:
@@ -360,9 +878,79 @@ paths:
       summary: 更新用户状态
       tags:
       - 管理员-用户管理
-  /api/v1/share/uniqueshortcode/:shortCode:
-    get:
-      responses: {}
+  /captcha/send:
+    post:
+      consumes:
+      - application/json
+      description: 向指定邮箱或手机发送验证码，用于注册、登录、重置密码等场景
+      parameters:
+      - description: 发送验证码请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SendCaptchaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.SendCaptchaResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "429":
+          description: 发送过于频繁
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 发送验证码
+      tags:
+      - 验证码
+  /captcha/verify:
+    post:
+      consumes:
+      - application/json
+      description: 验证用户输入的验证码是否正确
+      parameters:
+      - description: 验证请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifyCaptchaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 验证码错误或已过期
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 验证验证码
+      tags:
+      - 验证码
   /login:
     post:
       consumes:
@@ -428,6 +1016,1083 @@ paths:
       summary: 用户注册
       tags:
       - 用户模块
+  /shares:
+    get:
+      description: 分页获取分享信息列表
+      parameters:
+      - default: 0
+        description: 偏移量
+        in: query
+        name: offset
+        type: integer
+      - default: 10
+        description: 数量
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.ShareResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取分享信息列表
+      tags:
+      - 分享
+    post:
+      consumes:
+      - application/json
+      description: 创建新的分享信息记录
+      parameters:
+      - description: 创建分享请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateShareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 创建分享信息
+      tags:
+      - 分享
+  /shares/{id}:
+    delete:
+      description: 根据ID删除分享信息
+      parameters:
+      - description: 分享信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 删除分享信息
+      tags:
+      - 分享
+    get:
+      description: 根据ID获取分享信息详情
+      parameters:
+      - description: 分享信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ShareResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取分享信息详情
+      tags:
+      - 分享
+    put:
+      consumes:
+      - application/json
+      description: 根据ID更新分享信息
+      parameters:
+      - description: 分享信息ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新分享请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateShareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 更新分享信息
+      tags:
+      - 分享
+  /shares/code/{shortCode}:
+    get:
+      description: 通过唯一短码获取对应的分享信息
+      parameters:
+      - description: 短码
+        in: path
+        name: shortCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ShareResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 根据短码获取分享信息
+      tags:
+      - 分享
+  /shortlinks:
+    post:
+      consumes:
+      - application/json
+      description: 创建新的短链接。游客只需提供原始URL；登录用户可自定义短码和过期时间。
+      parameters:
+      - description: Bearer Token（可选）
+        in: header
+        name: Authorization
+        type: string
+      - description: 创建请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UserCreateShortlinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ShortlinkResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 创建短链接
+      tags:
+      - 短链接
+  /shortlinks/{short_code}:
+    delete:
+      description: 删除指定的短链接
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除短链接
+      tags:
+      - 短链接
+    get:
+      description: 获取指定短链接的详细信息
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ShortlinkDetailResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短链接详情
+      tags:
+      - 短链接
+    put:
+      consumes:
+      - application/json
+      description: 更新指定短链接的信息
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 更新请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateShortlinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新短链接
+      tags:
+      - 短链接
+  /shortlinks/{short_code}/expiration:
+    patch:
+      consumes:
+      - application/json
+      description: 延长指定短链接的过期时间
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 延期请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ExtendShortlinkExpirationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 延长短链接有效期
+      tags:
+      - 短链接
+  /shortlinks/{short_code}/share:
+    get:
+      description: 获取指定短链接的社交分享元信息（标题、描述、图片）
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.GetShareInfoResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短链接分享信息
+      tags:
+      - 分享
+    put:
+      consumes:
+      - application/json
+      description: 创建或更新指定短链接的社交分享元信息
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 分享信息请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateShareInfoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 设置短链接分享信息
+      tags:
+      - 分享
+  /shortlinks/{short_code}/stats/cities:
+    get:
+      description: 获取指定短链接在某省份下的城市分布数据
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 省份名称
+        in: query
+        name: province
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.RegionStatsResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取城市分布统计
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/devices:
+    get:
+      description: 获取指定短链接的设备分布数据，支持按设备类型/操作系统/浏览器维度
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - default: device_type
+        description: 维度：device_type/os/browser
+        in: query
+        name: dimension
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.DeviceStatsResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取设备分布统计
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/logs:
+    get:
+      description: 分页获取指定短链接的原始访问日志记录
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AccessLogListResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取访问日志
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/overview:
+    get:
+      description: 获取指定短链接的统计概览数据（总点击、UV、今日点击等）
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.OverviewStatsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取统计概览
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/provinces:
+    get:
+      description: 获取指定短链接的访问省份分布数据
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.RegionStatsResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取省份分布统计
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/sources:
+    get:
+      description: 获取指定短链接的访问来源（Referer）分布数据
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.SourceStatsResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取来源分布统计
+      tags:
+      - 统计
+  /shortlinks/{short_code}/stats/trend:
+    get:
+      description: 获取指定短链接的点击趋势数据，支持按天/小时粒度
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - default: day
+        description: 粒度：hour/day
+        in: query
+        name: granularity
+        type: string
+      - description: 开始日期
+        in: query
+        name: start_date
+        type: string
+      - description: 结束日期
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/dto.TrendStatsResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取点击趋势
+      tags:
+      - 统计
+  /shortlinks/{short_code}/status:
+    patch:
+      consumes:
+      - application/json
+      description: 更新短链接的启用/禁用状态
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 状态请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateShortlinkStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新短链接状态
+      tags:
+      - 短链接
+  /shortlinks/{short_code}/tags:
+    delete:
+      consumes:
+      - application/json
+      description: 从指定短链接移除一个标签
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 移除标签请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RemoveTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 移除短链接标签
+      tags:
+      - 标签
+    post:
+      consumes:
+      - application/json
+      description: 为指定短链接添加一个标签
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 添加标签请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AddTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 为短链接添加标签
+      tags:
+      - 标签
+  /shortlinks/my:
+    get:
+      description: 分页获取当前用户创建的短链接
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      - description: 标签筛选
+        in: query
+        name: tag
+        type: string
+      - description: 排序字段
+        in: query
+        name: sort_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ShortlinkListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的短链接列表
+      tags:
+      - 短链接
+  /tags:
+    get:
+      description: 获取当前用户的所有标签
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TagListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的标签列表
+      tags:
+      - 标签
   /users/{id}:
     delete:
       consumes:
@@ -845,7 +2510,12 @@ paths:
         "200":
           description: 令牌刷新成功
           schema:
-            $ref: '#/definitions/response.Response'
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.LoginResponse'
+              type: object
         "401":
           description: 令牌无效或已过期
           schema:

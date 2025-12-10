@@ -24,6 +24,61 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/stats/global": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取平台级别的全局统计数据（仅管理员可访问）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取平台全局统计",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.GlobalStatsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "无管理员权限",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/users": {
             "get": {
                 "security": [
@@ -74,7 +129,19 @@ const docTemplate = `{
                     "200": {
                         "description": "获取成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.UserListResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
@@ -217,9 +284,120 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/share/uniqueshortcode/:shortCode": {
-            "get": {
-                "responses": {}
+        "/captcha/send": {
+            "post": {
+                "description": "向指定邮箱或手机发送验证码，用于注册、登录、重置密码等场景",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "验证码"
+                ],
+                "summary": "发送验证码",
+                "parameters": [
+                    {
+                        "description": "发送验证码请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SendCaptchaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.SendCaptchaResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "发送过于频繁",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/captcha/verify": {
+            "post": {
+                "description": "验证用户输入的验证码是否正确",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "验证码"
+                ],
+                "summary": "验证验证码",
+                "parameters": [
+                    {
+                        "description": "验证请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VerifyCaptchaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "验证码错误或已过期",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
             }
         },
         "/login": {
@@ -319,6 +497,1732 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "用户已存在",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shares": {
+            "get": {
+                "description": "分页获取分享信息列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "获取分享信息列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "偏移量",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "数量",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.ShareResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "创建新的分享信息记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "创建分享信息",
+                "parameters": [
+                    {
+                        "description": "创建分享请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shares/code/{shortCode}": {
+            "get": {
+                "description": "通过唯一短码获取对应的分享信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "根据短码获取分享信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ShareResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shares/{id}": {
+            "get": {
+                "description": "根据ID获取分享信息详情",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "获取分享信息详情",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "分享信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ShareResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "根据ID更新分享信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "更新分享信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "分享信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新分享请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "根据ID删除分享信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "删除分享信息",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "分享信息ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks": {
+            "post": {
+                "description": "创建新的短链接。游客只需提供原始URL；登录用户可自定义短码和过期时间。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "创建短链接",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer Token（可选）",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "description": "创建请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UserCreateShortlinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ShortlinkResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/my": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页获取当前用户创建的短链接",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "获取我的短链接列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "标签筛选",
+                        "name": "tag",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序字段",
+                        "name": "sort_by",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ShortlinkListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的详细信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "获取短链接详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ShortlinkDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新指定短链接的信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "更新短链接",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateShortlinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除指定的短链接",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "删除短链接",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/expiration": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "延长指定短链接的过期时间",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "延长短链接有效期",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "延期请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ExtendShortlinkExpirationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/share": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的社交分享元信息（标题、描述、图片）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "获取短链接分享信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.GetShareInfoResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建或更新指定短链接的社交分享元信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "分享"
+                ],
+                "summary": "设置短链接分享信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "分享信息请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateShareInfoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/cities": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接在某省份下的城市分布数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取城市分布统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "省份名称",
+                        "name": "province",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.RegionStatsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/devices": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的设备分布数据，支持按设备类型/操作系统/浏览器维度",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取设备分布统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "device_type",
+                        "description": "维度：device_type/os/browser",
+                        "name": "dimension",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.DeviceStatsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "分页获取指定短链接的原始访问日志记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取访问日志",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "每页数量",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AccessLogListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的统计概览数据（总点击、UV、今日点击等）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取统计概览",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.OverviewStatsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/provinces": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的访问省份分布数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取省份分布统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.RegionStatsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/sources": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的访问来源（Referer）分布数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取来源分布统计",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.SourceStatsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/stats/trend": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定短链接的点击趋势数据，支持按天/小时粒度",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "统计"
+                ],
+                "summary": "获取点击趋势",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "day",
+                        "description": "粒度：hour/day",
+                        "name": "granularity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "开始日期",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "结束日期",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.TrendStatsResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新短链接的启用/禁用状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "更新短链接状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "状态请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateShortlinkStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/shortlinks/{short_code}/tags": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "为指定短链接添加一个标签",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标签"
+                ],
+                "summary": "为短链接添加标签",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "添加标签请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AddTagRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "从指定短链接移除一个标签",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标签"
+                ],
+                "summary": "移除短链接标签",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "short_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "移除标签请求体",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RemoveTagRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tags": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前用户的所有标签",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "标签"
+                ],
+                "summary": "获取我的标签列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TagListResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -725,7 +2629,19 @@ const docTemplate = `{
                     "200": {
                         "description": "令牌刷新成功",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
@@ -1000,14 +2916,135 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/{shortCode}": {
+            "get": {
+                "description": "根据短码重定向到原始URL，同时记录访问统计",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "短链接"
+                ],
+                "summary": "短链接重定向",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "短码",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "重定向到原始URL",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "短链接不存在",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "common.PaginationResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "description": "每页数量",
+                    "type": "integer"
+                },
+                "page": {
+                    "description": "当前页码",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "数据总条数",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AccessLogListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.AccessLog"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/common.PaginationResponse"
+                }
+            }
+        },
+        "dto.AddTagRequest": {
+            "type": "object",
+            "required": [
+                "tagName"
+            ],
+            "properties": {
+                "tagName": {
+                    "description": "标签名，必填，长度限制1-30",
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 1
+                }
+            }
+        },
         "dto.CheckExistenceResponse": {
             "type": "object",
             "properties": {
                 "exists": {
                     "type": "boolean"
+                }
+            }
+        },
+        "dto.CreateShareRequest": {
+            "description": "...",
+            "type": "object",
+            "properties": {
+                "shareDesc": {
+                    "description": "分享描述",
+                    "type": "string"
+                },
+                "shareImage": {
+                    "description": "分享封面图URL",
+                    "type": "string"
+                },
+                "shareTitle": {
+                    "description": "分享标题",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "关联短码",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.DeviceStatsResponse": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "设备/系统/浏览器名称",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "对应的点击量",
+                    "type": "integer"
                 }
             }
         },
@@ -1019,6 +3056,25 @@ const docTemplate = `{
             "properties": {
                 "recoveryToken": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.ExtendShortlinkExpirationRequest": {
+            "type": "object",
+            "required": [
+                "expiresIn"
+            ],
+            "properties": {
+                "expiresIn": {
+                    "description": "限制了只能传入指定的有效期字符串",
+                    "type": "string",
+                    "enum": [
+                        "7d",
+                        "30d",
+                        "90d",
+                        "1y",
+                        "never"
+                    ]
                 }
             }
         },
@@ -1038,6 +3094,51 @@ const docTemplate = `{
                         "email",
                         "phone"
                     ]
+                }
+            }
+        },
+        "dto.GetShareInfoResponse": {
+            "type": "object",
+            "properties": {
+                "shareDesc": {
+                    "description": "分享描述",
+                    "type": "string"
+                },
+                "shareImage": {
+                    "description": "分享封面图URL",
+                    "type": "string"
+                },
+                "shareTitle": {
+                    "description": "分享标题",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "关联短码",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.GlobalStatsResponse": {
+            "type": "object",
+            "properties": {
+                "activeUsers": {
+                    "description": "近30天活跃用户数",
+                    "type": "integer"
+                },
+                "topLinks": {
+                    "description": "Top 5 热门短链接",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.TopLinkInfo"
+                    }
+                },
+                "totalClicks": {
+                    "description": "平台总点击量",
+                    "type": "integer"
+                },
+                "totalShortlinks": {
+                    "description": "平台短链接总数",
+                    "type": "integer"
                 }
             }
         },
@@ -1072,6 +3173,27 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.OverviewStatsResponse": {
+            "type": "object",
+            "properties": {
+                "clicksToday": {
+                    "description": "今日点击量",
+                    "type": "integer"
+                },
+                "topRegion": {
+                    "description": "点击量最高的地域（省份/国家）",
+                    "type": "string"
+                },
+                "topSource": {
+                    "description": "点击量最高的来源（暂未实现）",
+                    "type": "string"
+                },
+                "totalClicks": {
+                    "description": "短链接历史总点击量",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.RefreshTokenRequest": {
             "type": "object",
             "required": [
@@ -1080,6 +3202,19 @@ const docTemplate = `{
             "properties": {
                 "refreshToken": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.RegionStatsResponse": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "地域名称（如 \"广东省\" 或 \"深圳市\"）",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "对应的点击量",
+                    "type": "integer"
                 }
             }
         },
@@ -1119,6 +3254,17 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.RemoveTagRequest": {
+            "type": "object",
+            "required": [
+                "tagName"
+            ],
+            "properties": {
+                "tagName": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.RequestRecoveryRequest": {
             "type": "object",
             "required": [
@@ -1154,6 +3300,257 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SendCaptchaRequest": {
+            "type": "object",
+            "required": [
+                "account",
+                "scene"
+            ],
+            "properties": {
+                "account": {
+                    "description": "手机号或邮箱",
+                    "type": "string"
+                },
+                "scene": {
+                    "description": "场景 (register/login/reset_pwd等)",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "类型，默认为email",
+                    "type": "string",
+                    "enum": [
+                        "sms",
+                        "email"
+                    ]
+                }
+            }
+        },
+        "dto.SendCaptchaResponse": {
+            "type": "object",
+            "properties": {
+                "expire_second": {
+                    "description": "验证码有效期（秒）",
+                    "type": "integer"
+                },
+                "next_send_second": {
+                    "description": "下次可发送的冷却时间（秒）",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ShareInfo": {
+            "type": "object",
+            "properties": {
+                "desc": {
+                    "type": "string"
+                },
+                "image": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ShareResponse": {
+            "description": "响应给客户端的 Share 信息，屏蔽了敏感字段",
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "shareDesc": {
+                    "description": "分享描述",
+                    "type": "string"
+                },
+                "shareImage": {
+                    "description": "分享封面图URL",
+                    "type": "string"
+                },
+                "shareTitle": {
+                    "description": "分享标题",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "关联短码",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ShortlinkDetailResponse": {
+            "type": "object",
+            "properties": {
+                "clickCount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expireAt": {
+                    "type": "string"
+                },
+                "originalUrl": {
+                    "type": "string"
+                },
+                "share": {
+                    "description": "关联的分享信息",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ShareInfo"
+                        }
+                    ]
+                },
+                "shortCode": {
+                    "type": "string"
+                },
+                "shortUrl": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "tags": {
+                    "description": "关联的标签名列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.ShortlinkListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ShortlinkDetailResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/common.PaginationResponse"
+                }
+            }
+        },
+        "dto.ShortlinkResponse": {
+            "description": "响应给客户端的 Shortlink 信息，屏蔽了敏感字段",
+            "type": "object",
+            "properties": {
+                "clickCount": {
+                    "description": "点击量统计",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expireAt": {
+                    "description": "过期时间（NULL=永久）",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isCustom": {
+                    "description": "是否为自定义短码（1=是）",
+                    "type": "integer"
+                },
+                "isHot": {
+                    "description": "是否为热点短码（1=是，日访问≥1000）",
+                    "type": "integer"
+                },
+                "lastWarnAt": {
+                    "description": "最近一次失效预警发送时间",
+                    "type": "string"
+                },
+                "originalUrl": {
+                    "description": "原始长链接（URLEncode编码）",
+                    "type": "string"
+                },
+                "originalUrlMd5": {
+                    "description": "原始长链接的MD5摘要",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "短码（Base62，区分大小写）",
+                    "type": "string"
+                },
+                "shortUrl": {
+                    "description": "完整的短链接URL",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态（1=有效，0=失效）",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "userId": {
+                    "description": "关联用户ID（管理员为0）",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.SourceStatsResponse": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "来源渠道名称",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "对应的点击量",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.TagListResponse": {
+            "type": "object",
+            "properties": {
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "dto.TopLinkInfo": {
+            "type": "object",
+            "properties": {
+                "clickCount": {
+                    "description": "点击量",
+                    "type": "integer"
+                },
+                "originalUrl": {
+                    "description": "原始链接（可选）",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "短码",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TrendStatsResponse": {
+            "type": "object",
+            "properties": {
+                "clicks": {
+                    "description": "当日点击量",
+                    "type": "integer"
+                },
+                "date": {
+                    "description": "日期 (YYYY-MM-DD)",
+                    "type": "string"
+                }
+            }
+        },
         "dto.UpdatePasswordRequest": {
             "type": "object",
             "required": [
@@ -1168,6 +3565,91 @@ const docTemplate = `{
                 },
                 "oldPassword": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UpdateShareInfoRequest": {
+            "type": "object",
+            "properties": {
+                "shareDesc": {
+                    "description": "分享描述",
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "shareImage": {
+                    "description": "分享封面图URL",
+                    "type": "string"
+                },
+                "shareTitle": {
+                    "description": "分享标题",
+                    "type": "string",
+                    "maxLength": 50
+                }
+            }
+        },
+        "dto.UpdateShareRequest": {
+            "description": "...",
+            "type": "object",
+            "properties": {
+                "shareDesc": {
+                    "description": "分享描述",
+                    "type": "string"
+                },
+                "shareImage": {
+                    "description": "分享封面图URL",
+                    "type": "string"
+                },
+                "shareTitle": {
+                    "description": "分享标题",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "关联短码",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UpdateShortlinkRequest": {
+            "description": "...",
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "type": "string",
+                    "enum": [
+                        "7d",
+                        "30d",
+                        "90d",
+                        "1y",
+                        "never"
+                    ]
+                },
+                "originalUrl": {
+                    "description": "原始长链接（URLEncode编码）",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态（1=有效，0=失效）",
+                    "type": "integer",
+                    "enum": [
+                        0,
+                        1
+                    ]
+                }
+            }
+        },
+        "dto.UpdateShortlinkStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "description": "使用指针和 binding:\"required\" 确保该字段必须被传入\noneof=0 1 限制了状态值只能是 0 (失效) 或 1 (有效)",
+                    "type": "integer",
+                    "enum": [
+                        0,
+                        1
+                    ]
                 }
             }
         },
@@ -1211,6 +3693,49 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UserCreateShortlinkRequest": {
+            "type": "object",
+            "required": [
+                "originalUrl"
+            ],
+            "properties": {
+                "expiresIn": {
+                    "type": "string",
+                    "enum": [
+                        "1h",
+                        "24h",
+                        "7d",
+                        "30d",
+                        "90d",
+                        "1y",
+                        "never"
+                    ]
+                },
+                "originalUrl": {
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "omitempty: 可选; alphanum: 只能是字母和数字; min/max: 长度限制",
+                    "type": "string",
+                    "maxLength": 8,
+                    "minLength": 6
+                }
+            }
+        },
+        "dto.UserListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.UserResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/common.PaginationResponse"
+                }
+            }
+        },
         "dto.UserResponse": {
             "type": "object",
             "properties": {
@@ -1242,6 +3767,26 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.VerifyCaptchaRequest": {
+            "type": "object",
+            "required": [
+                "account",
+                "captcha",
+                "scene"
+            ],
+            "properties": {
+                "account": {
+                    "type": "string"
+                },
+                "captcha": {
+                    "description": "验证码通常为6位",
+                    "type": "string"
+                },
+                "scene": {
                     "type": "string"
                 }
             }
@@ -1305,6 +3850,59 @@ const docTemplate = `{
                 "recoveryToken": {
                     "description": "返回一次性的账号恢复令牌",
                     "type": "string"
+                }
+            }
+        },
+        "model.AccessLog": {
+            "type": "object",
+            "properties": {
+                "accessedAt": {
+                    "description": "访问时间",
+                    "type": "string"
+                },
+                "browser": {
+                    "description": "解析出的浏览器",
+                    "type": "string"
+                },
+                "channel": {
+                    "description": "访问来源渠道",
+                    "type": "string"
+                },
+                "city": {
+                    "description": "解析出的地理位置（城市）",
+                    "type": "string"
+                },
+                "deviceType": {
+                    "description": "解析出的设备类型（PC/Mobile/Tablet/Other）",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "日志唯一标识",
+                    "type": "integer"
+                },
+                "ip": {
+                    "description": "访问IP地址",
+                    "type": "string"
+                },
+                "osVersion": {
+                    "description": "解析出的操作系统",
+                    "type": "string"
+                },
+                "province": {
+                    "description": "解析出的地理位置（省份）",
+                    "type": "string"
+                },
+                "shortCode": {
+                    "description": "关联的短码",
+                    "type": "string"
+                },
+                "userAgent": {
+                    "description": "设备User-Agent",
+                    "type": "string"
+                },
+                "userID": {
+                    "description": "访问者用户ID（0代表未登录）",
+                    "type": "integer"
                 }
             }
         },

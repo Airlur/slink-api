@@ -33,7 +33,18 @@ func handleCaptchaServiceError(c *gin.Context, err error) {
 	response.Fail(c, response.InternalError, "")
 }
 
-// SendCaptcha 处理发送验证码请求
+// SendCaptcha 发送验证码
+// @Summary      发送验证码
+// @Description  向指定邮箱或手机发送验证码，用于注册、登录、重置密码等场景
+// @Tags         验证码
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.SendCaptchaRequest  true  "发送验证码请求体"
+// @Success      200      {object}  response.Response{data=dto.SendCaptchaResponse}
+// @Failure      400      {object}  response.Response
+// @Failure      429      {object}  response.Response  "发送过于频繁"
+// @Failure      500      {object}  response.Response
+// @Router       /captcha/send [post]
 func (h *CaptchaHandler) SendCaptcha(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.SendCaptchaRequest
@@ -52,7 +63,18 @@ func (h *CaptchaHandler) SendCaptcha(c *gin.Context) {
 	response.Ok(c, resp, "验证码已发送，请注意查收")
 }
 
-// VerifyCaptcha 处理验证验证码的请求
+// VerifyCaptcha 验证验证码
+// @Summary      验证验证码
+// @Description  验证用户输入的验证码是否正确
+// @Tags         验证码
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.VerifyCaptchaRequest  true  "验证请求体"
+// @Success      200      {object}  response.Response
+// @Failure      400      {object}  response.Response
+// @Failure      401      {object}  response.Response  "验证码错误或已过期"
+// @Failure      500      {object}  response.Response
+// @Router       /captcha/verify [post]
 func (h *CaptchaHandler) VerifyCaptcha(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.VerifyCaptchaRequest

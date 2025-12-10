@@ -39,6 +39,19 @@ func handleShortlinkServiceError(c *gin.Context, err error) {
 	response.Fail(c, response.InternalError, "") // message留空，Fail函数会自动填充
 }
 
+// Create 创建短链接
+// @Summary      创建短链接
+// @Description  创建新的短链接。游客只需提供原始URL；登录用户可自定义短码和过期时间。
+// @Tags         短链接
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string                          false  "Bearer Token（可选）"
+// @Param        request        body      dto.UserCreateShortlinkRequest  true   "创建请求体"
+// @Success      200            {object}  response.Response{data=dto.ShortlinkResponse}
+// @Failure      400            {object}  response.Response
+// @Failure      409            {object}  response.Response
+// @Failure      500            {object}  response.Response
+// @Router       /shortlinks [post]
 func (h *ShortlinkHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -79,7 +92,16 @@ func (h *ShortlinkHandler) Create(c *gin.Context) {
 	}
 }
 
-// Redirect处理短链接的 HTTP 重定向
+// Redirect 短链接重定向
+// @Summary      短链接重定向
+// @Description  根据短码重定向到原始URL，同时记录访问统计
+// @Tags         短链接
+// @Produce      html
+// @Param        shortCode  path      string  true  "短码"
+// @Success      302        {string}  string  "重定向到原始URL"
+// @Failure      404        {string}  string  "短链接不存在"
+// @Failure      500        {object}  response.Response
+// @Router       /{shortCode} [get]
 func (h *ShortlinkHandler) Redirect(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("shortCode")
@@ -122,6 +144,22 @@ func (h *ShortlinkHandler) Redirect(c *gin.Context) {
 	c.Redirect(http.StatusFound, originalUrl)
 }
 
+// Update 更新短链接
+// @Summary      更新短链接
+// @Description  更新指定短链接的信息
+// @Tags         短链接
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string                      true  "短码"
+// @Param        request     body      dto.UpdateShortlinkRequest  true  "更新请求体"
+// @Success      200         {object}  response.Response
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code} [put]
 func (h *ShortlinkHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("short_code")
@@ -142,6 +180,19 @@ func (h *ShortlinkHandler) Update(c *gin.Context) {
 	response.Ok(c, nil, "更新成功")
 }
 
+// Delete 删除短链接
+// @Summary      删除短链接
+// @Description  删除指定的短链接
+// @Tags         短链接
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code} [delete]
 func (h *ShortlinkHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("short_code")
@@ -154,7 +205,20 @@ func (h *ShortlinkHandler) Delete(c *gin.Context) {
 	response.Ok(c, nil, "删除成功")
 }
 
-// ListMy 获取当前用户的短链接列表
+// ListMy 获取我的短链接列表
+// @Summary      获取我的短链接列表
+// @Description  分页获取当前用户创建的短链接
+// @Tags         短链接
+// @Produce      json
+// @Security     BearerAuth
+// @Param        page     query     int     false  "页码"      default(1)
+// @Param        limit    query     int     false  "每页数量"  default(20)
+// @Param        tag      query     string  false  "标签筛选"
+// @Param        sort_by  query     string  false  "排序字段"
+// @Success      200      {object}  response.Response{data=dto.ShortlinkListResponse}
+// @Failure      401      {object}  response.Response
+// @Failure      500      {object}  response.Response
+// @Router       /shortlinks/my [get]
 func (h *ShortlinkHandler) ListMy(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -176,7 +240,19 @@ func (h *ShortlinkHandler) ListMy(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
-// GetDetail 获取单个短链接详情
+// GetDetail 获取短链接详情
+// @Summary      获取短链接详情
+// @Description  获取指定短链接的详细信息
+// @Tags         短链接
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response{data=dto.ShortlinkDetailResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code} [get]
 func (h *ShortlinkHandler) GetDetail(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -191,7 +267,22 @@ func (h *ShortlinkHandler) GetDetail(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
-// UpdateStatus 更新短链接状态（启用/禁用）
+// UpdateStatus 更新短链接状态
+// @Summary      更新短链接状态
+// @Description  更新短链接的启用/禁用状态
+// @Tags         短链接
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string                            true  "短码"
+// @Param        request     body      dto.UpdateShortlinkStatusRequest  true  "状态请求体"
+// @Success      200         {object}  response.Response
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/status [patch]
 func (h *ShortlinkHandler) UpdateStatus(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("short_code")
@@ -213,6 +304,21 @@ func (h *ShortlinkHandler) UpdateStatus(c *gin.Context) {
 }
 
 // ExtendExpiration 延长短链接有效期
+// @Summary      延长短链接有效期
+// @Description  延长指定短链接的过期时间
+// @Tags         短链接
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string                                true  "短码"
+// @Param        request     body      dto.ExtendShortlinkExpirationRequest  true  "延期请求体"
+// @Success      200         {object}  response.Response
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/expiration [patch]
 func (h *ShortlinkHandler) ExtendExpiration(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("short_code")

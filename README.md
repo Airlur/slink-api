@@ -480,3 +480,6 @@ GET /admin/stats/global (管理员全局统计)。
 （可选）暴露/metrics接口用于Prometheus监控。
 
 （可选）为cron.go增加优雅停机 (Graceful Shutdown) 的逻辑。
+
+swagger 更新后执行命令：
+swag init -g cmd/main.go -o ./docs

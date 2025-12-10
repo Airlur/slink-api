@@ -34,6 +34,18 @@ func handleStatsServiceError(c *gin.Context, err error) {
 
 
 // GetOverview 获取概览统计
+// @Summary      获取统计概览
+// @Description  获取指定短链接的统计概览数据（总点击、UV、今日点击等）
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response{data=dto.OverviewStatsResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/overview [get]
 func (h *StatsHandler) GetOverview(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -49,6 +61,22 @@ func (h *StatsHandler) GetOverview(c *gin.Context) {
 }
 
 // GetTrend 获取点击趋势
+// @Summary      获取点击趋势
+// @Description  获取指定短链接的点击趋势数据，支持按天/小时粒度
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code   path      string  true   "短码"
+// @Param        granularity  query     string  false  "粒度：hour/day"  default(day)
+// @Param        start_date   query     string  false  "开始日期"
+// @Param        end_date     query     string  false  "结束日期"
+// @Success      200          {object}  response.Response{data=[]dto.TrendStatsResponse}
+// @Failure      400          {object}  response.Response
+// @Failure      401          {object}  response.Response
+// @Failure      403          {object}  response.Response
+// @Failure      404          {object}  response.Response
+// @Failure      500          {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/trend [get]
 func (h *StatsHandler) GetTrend(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -69,6 +97,18 @@ func (h *StatsHandler) GetTrend(c *gin.Context) {
 }
 
 // GetProvinces 获取省级统计
+// @Summary      获取省份分布统计
+// @Description  获取指定短链接的访问省份分布数据
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response{data=[]dto.RegionStatsResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/provinces [get]
 func (h *StatsHandler) GetProvinces(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -83,6 +123,20 @@ func (h *StatsHandler) GetProvinces(c *gin.Context) {
 }
 
 // GetCities 获取市级统计
+// @Summary      获取城市分布统计
+// @Description  获取指定短链接在某省份下的城市分布数据
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true   "短码"
+// @Param        province    query     string  false  "省份名称"
+// @Success      200         {object}  response.Response{data=[]dto.RegionStatsResponse}
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/cities [get]
 func (h *StatsHandler) GetCities(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -103,6 +157,19 @@ func (h *StatsHandler) GetCities(c *gin.Context) {
 }
 
 // GetDevices 获取设备统计
+// @Summary      获取设备分布统计
+// @Description  获取指定短链接的设备分布数据，支持按设备类型/操作系统/浏览器维度
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true   "短码"
+// @Param        dimension   query     string  false  "维度：device_type/os/browser"  default(device_type)
+// @Success      200         {object}  response.Response{data=[]dto.DeviceStatsResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/devices [get]
 func (h *StatsHandler) GetDevices(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -119,6 +186,18 @@ func (h *StatsHandler) GetDevices(c *gin.Context) {
 }
 
 // GetSources 获取来源统计
+// @Summary      获取来源分布统计
+// @Description  获取指定短链接的访问来源（Referer）分布数据
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response{data=[]dto.SourceStatsResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/sources [get]
 func (h *StatsHandler) GetSources(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -132,7 +211,22 @@ func (h *StatsHandler) GetSources(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
-// GetLogs 获取原始访问日志
+// GetLogs 获取访问日志
+// @Summary      获取访问日志
+// @Description  分页获取指定短链接的原始访问日志记录
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true   "短码"
+// @Param        page        query     int     false  "页码"      default(1)
+// @Param        page_size   query     int     false  "每页数量"  default(20)
+// @Success      200         {object}  response.Response{data=dto.AccessLogListResponse}
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/stats/logs [get]
 func (h *StatsHandler) GetLogs(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -152,7 +246,17 @@ func (h *StatsHandler) GetLogs(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
-// GetGlobalStats 获取平台全局统计
+// GetGlobalStats 获取全局统计
+// @Summary      获取平台全局统计
+// @Description  获取平台级别的全局统计数据（仅管理员可访问）
+// @Tags         统计
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  response.Response{data=dto.GlobalStatsResponse}
+// @Failure      401  {object}  response.Response
+// @Failure      403  {object}  response.Response  "无管理员权限"
+// @Failure      500  {object}  response.Response
+// @Router       /admin/stats/global [get]
 func (h *StatsHandler) GetGlobalStats(c *gin.Context) {
 	ctx := c.Request.Context()
 	// 注意：此接口已由管理员中间件保护，无需再校验权限

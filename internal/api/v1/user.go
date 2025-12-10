@@ -128,9 +128,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 // @Tags         用户模块
 // @Accept       json
 // @Produce      json
-// @Param        request  body      dto.RefreshTokenRequest  true  "刷新令牌"
-// @Success      200      {object}  response.Response        "令牌刷新成功"
-// @Failure      401      {object}  response.Response        "令牌无效或已过期"
+// @Param        request  body      dto.RefreshTokenRequest                      true  "刷新令牌"
+// @Success      200      {object}  response.Response{data=dto.LoginResponse}    "令牌刷新成功"
+// @Failure      401      {object}  response.Response                            "令牌无效或已过期"
 // @Router       /users/token/refresh [post]
 func (h *UserHandler) RefreshToken(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -354,7 +354,7 @@ func (h *UserHandler) Get(c *gin.Context) {
 // @Param        pageSize  query     int     false  "每页数量"  default(10)
 // @Param        username  query     string  false  "用户名（模糊查询）"
 // @Param        status    query     int     false  "用户状态"
-// @Success      200       {object}  response.Response  "获取成功"
+// @Success      200       {object}  response.Response{data=dto.UserListResponse}  "获取成功"
 // @Failure      401       {object}  response.Response  "用户未认证"
 // @Failure      403       {object}  response.Response  "无权访问"
 // @Router       /admin/users [get]

@@ -1,5 +1,16 @@
 package dto
 
+import (
+	"short-link/internal/dto/common"
+	"short-link/internal/model"
+)
+
+// AccessLogListResponse 用于 Swagger 文档生成分页响应
+type AccessLogListResponse struct {
+	Data       []*model.AccessLog        `json:"data"`
+	Pagination common.PaginationResponse `json:"pagination"`
+}
+
 // OverviewStatsResponse 概览统计响应体
 type OverviewStatsResponse struct {
 	TotalClicks int64  `json:"totalClicks"` // 短链接历史总点击量

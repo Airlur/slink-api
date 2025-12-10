@@ -40,6 +40,18 @@ func handleShareServiceError(c *gin.Context, err error) {
 }
 
 // Get 获取分享信息
+// @Summary      获取短链接分享信息
+// @Description  获取指定短链接的社交分享元信息（标题、描述、图片）
+// @Tags         分享
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string  true  "短码"
+// @Success      200         {object}  response.Response{data=dto.GetShareInfoResponse}
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/share [get]
 func (h *ShareHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -54,6 +66,21 @@ func (h *ShareHandler) Get(c *gin.Context) {
 }
 
 // Upsert 创建或更新分享信息
+// @Summary      设置短链接分享信息
+// @Description  创建或更新指定短链接的社交分享元信息
+// @Tags         分享
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        short_code  path      string                      true  "短码"
+// @Param        request     body      dto.UpdateShareInfoRequest  true  "分享信息请求体"
+// @Success      200         {object}  response.Response
+// @Failure      400         {object}  response.Response
+// @Failure      401         {object}  response.Response
+// @Failure      403         {object}  response.Response
+// @Failure      404         {object}  response.Response
+// @Failure      500         {object}  response.Response
+// @Router       /shortlinks/{short_code}/share [put]
 func (h *ShareHandler) Upsert(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -73,6 +100,17 @@ func (h *ShareHandler) Upsert(c *gin.Context) {
 	response.Ok(c, nil, "更新成功")
 }
 
+// Create 创建分享信息
+// @Summary      创建分享信息
+// @Description  创建新的分享信息记录
+// @Tags         分享
+// @Accept       json
+// @Produce      json
+// @Param        request  body      dto.CreateShareRequest  true  "创建分享请求体"
+// @Success      200      {object}  response.Response
+// @Failure      400      {object}  response.Response
+// @Failure      500      {object}  response.Response
+// @Router       /shares [post]
 func (h *ShareHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.CreateShareRequest
@@ -90,6 +128,19 @@ func (h *ShareHandler) Create(c *gin.Context) {
 	response.Ok(c, nil, "创建成功")
 }
 
+// Update 更新分享信息
+// @Summary      更新分享信息
+// @Description  根据ID更新分享信息
+// @Tags         分享
+// @Accept       json
+// @Produce      json
+// @Param        id       path      int                     true  "分享信息ID"
+// @Param        request  body      dto.UpdateShareRequest  true  "更新分享请求体"
+// @Success      200      {object}  response.Response
+// @Failure      400      {object}  response.Response
+// @Failure      404      {object}  response.Response
+// @Failure      500      {object}  response.Response
+// @Router       /shares/{id} [put]
 func (h *ShareHandler) Update(c *gin.Context) {
 	ctx := c.Request.Context()
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -113,6 +164,17 @@ func (h *ShareHandler) Update(c *gin.Context) {
 	response.Ok(c, nil, "更新成功")
 }
 
+// Delete 删除分享信息
+// @Summary      删除分享信息
+// @Description  根据ID删除分享信息
+// @Tags         分享
+// @Produce      json
+// @Param        id  path      int  true  "分享信息ID"
+// @Success      200 {object}  response.Response
+// @Failure      400 {object}  response.Response
+// @Failure      404 {object}  response.Response
+// @Failure      500 {object}  response.Response
+// @Router       /shares/{id} [delete]
 func (h *ShareHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -128,6 +190,17 @@ func (h *ShareHandler) Delete(c *gin.Context) {
 	response.Ok(c, nil, "删除成功")
 }
 
+// GetByID 根据ID获取分享信息
+// @Summary      获取分享信息详情
+// @Description  根据ID获取分享信息详情
+// @Tags         分享
+// @Produce      json
+// @Param        id  path      int  true  "分享信息ID"
+// @Success      200 {object}  response.Response{data=dto.ShareResponse}
+// @Failure      400 {object}  response.Response
+// @Failure      404 {object}  response.Response
+// @Failure      500 {object}  response.Response
+// @Router       /shares/{id} [get]
 func (h *ShareHandler) GetByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -145,6 +218,16 @@ func (h *ShareHandler) GetByID(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
+// List 获取分享信息列表
+// @Summary      获取分享信息列表
+// @Description  分页获取分享信息列表
+// @Tags         分享
+// @Produce      json
+// @Param        offset  query     int  false  "偏移量"  default(0)
+// @Param        limit   query     int  false  "数量"    default(10)
+// @Success      200     {object}  response.Response{data=[]dto.ShareResponse}
+// @Failure      500     {object}  response.Response
+// @Router       /shares [get]
 func (h *ShareHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -162,8 +245,16 @@ func (h *ShareHandler) List(c *gin.Context) {
 
 // ========== 为每个索引生成对应的 Handler 方法 ==========
 
-// GetUniqueShortCode handles the request to get a Share by its index.
-// @Router /api/v1/share/uniqueshortcode/:shortCode [get]
+// GetUniqueShortCode 根据短码获取分享信息
+// @Summary      根据短码获取分享信息
+// @Description  通过唯一短码获取对应的分享信息
+// @Tags         分享
+// @Produce      json
+// @Param        shortCode  path      string  true  "短码"
+// @Success      200        {object}  response.Response{data=dto.ShareResponse}
+// @Failure      404        {object}  response.Response
+// @Failure      500        {object}  response.Response
+// @Router       /shares/code/{shortCode} [get]
 func (h *ShareHandler) GetUniqueShortCode(c *gin.Context) {
 	ctx := c.Request.Context()
 	// 1. 从 URL 路径中解析参数
