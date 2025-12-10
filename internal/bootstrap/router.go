@@ -104,6 +104,9 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	// 使用自定义的日志和恢复中间件
 	r.Use(middleware.Logger(), middleware.Recovery())
 
+	// 处理跨域请求
+	r.Use(middleware.Cors())
+
 	// =============== Swagger 文档路由 ===============
 	// 访问地址: http://localhost:8080/swagger/index.html
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
