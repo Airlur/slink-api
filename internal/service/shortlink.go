@@ -753,20 +753,20 @@ func validateAndFormatURL(originalURL string) (string, error) {
 	}
 
 	// 2. 协议处理：检查是否已有 http/https 前缀（忽略大小写）
-	// 必须先补全协议，url.ParseRequestURI 才能正确解析出 Host
+	// 必须先补全协议，url.Parse 才能正确解析出 Host
 	lowerURL := strings.ToLower(originalURL)
 	if !strings.HasPrefix(lowerURL, "http://") && !strings.HasPrefix(lowerURL, "https://") {
 		originalURL = "https://" + originalURL
 	}
 
 	// 3. 合法性与防嵌套校验
-	parsedURL, err := url.ParseRequestURI(originalURL)
+	parsedURL, err := url.Parse(originalURL)
 	if err != nil {
 		return "", bizErrors.New(response.InvalidParam, "无效的URL格式")
 	}
 
 	// 4. Host 校验：必须包含 "." 或者是 "localhost"
-	// 这一步必须在 ParseRequestURI 之后，因为只有解析出 Host 才能准确判断
+	// 这一步必须在 Parse 之后，因为只有解析出 Host 才能准确判断
 	if !strings.Contains(parsedURL.Host, ".") && parsedURL.Host != "localhost" {
 		return "", bizErrors.New(response.InvalidParam, "无效的URL格式")
 	}
@@ -775,6 +775,12 @@ func validateAndFormatURL(originalURL string) (string, error) {
 		return "", bizErrors.New(response.LinkNestingNotAllowed, "当前网址已经是短链接，无需再次缩短")
 	}
 
+	// 5. 修复片段编码问题
+	// 直接设置 RawFragment 来避免自动编码
+	if parsedURL.Fragment != "" {
+		parsedURL.RawFragment = parsedURL.Fragment
+	}
+	
 	return parsedURL.String(), nil
 }
 

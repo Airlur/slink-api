@@ -51,7 +51,7 @@ func handleShareServiceError(c *gin.Context, err error) {
 // @Failure      403         {object}  response.Response
 // @Failure      404         {object}  response.Response
 // @Failure      500         {object}  response.Response
-// @Router       /shortlinks/{short_code}/share [get]
+// @Router       /shares/{short_code} [get]
 func (h *ShareHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -80,7 +80,7 @@ func (h *ShareHandler) Get(c *gin.Context) {
 // @Failure      403         {object}  response.Response
 // @Failure      404         {object}  response.Response
 // @Failure      500         {object}  response.Response
-// @Router       /shortlinks/{short_code}/share [put]
+// @Router       /shares/{short_code} [put]
 func (h *ShareHandler) Upsert(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)

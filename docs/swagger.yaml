@@ -1184,6 +1184,96 @@ paths:
       summary: 更新分享信息
       tags:
       - 分享
+  /shares/{short_code}:
+    get:
+      description: 获取指定短链接的社交分享元信息（标题、描述、图片）
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.GetShareInfoResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取短链接分享信息
+      tags:
+      - 分享
+    put:
+      consumes:
+      - application/json
+      description: 创建或更新指定短链接的社交分享元信息
+      parameters:
+      - description: 短码
+        in: path
+        name: short_code
+        required: true
+        type: string
+      - description: 分享信息请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateShareInfoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 设置短链接分享信息
+      tags:
+      - 分享
   /shares/code/{shortCode}:
     get:
       description: 通过唯一短码获取对应的分享信息
@@ -1434,96 +1524,6 @@ paths:
       summary: 延长短链接有效期
       tags:
       - 短链接
-  /shortlinks/{short_code}/share:
-    get:
-      description: 获取指定短链接的社交分享元信息（标题、描述、图片）
-      parameters:
-      - description: 短码
-        in: path
-        name: short_code
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/dto.GetShareInfoResponse'
-              type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Response'
-      security:
-      - BearerAuth: []
-      summary: 获取短链接分享信息
-      tags:
-      - 分享
-    put:
-      consumes:
-      - application/json
-      description: 创建或更新指定短链接的社交分享元信息
-      parameters:
-      - description: 短码
-        in: path
-        name: short_code
-        required: true
-        type: string
-      - description: 分享信息请求体
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateShareInfoRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/response.Response'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Response'
-      security:
-      - BearerAuth: []
-      summary: 设置短链接分享信息
-      tags:
-      - 分享
   /shortlinks/{short_code}/stats/cities:
     get:
       description: 获取指定短链接在某省份下的城市分布数据

@@ -78,7 +78,7 @@ func (r *shortlinkRepository) ListByUserID(ctx context.Context, userID uint, opt
 	var total int64
 
 	// 1. 构建基础查询
-	db := r.db.WithContext(ctx).Model(&model.Shortlink{}).Where("user_id = ?", userID)
+	db := r.db.WithContext(ctx).Model(&model.Shortlink{}).Where("shortlinks.user_id = ?", userID)
 
 	// 2. 应用筛选条件
 	if options.Tag != "" {
