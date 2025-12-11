@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
-	"short-link/internal/model"
 	"short-link/internal/dto"
+	"short-link/internal/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -28,6 +29,11 @@ type StatsRepository interface {
 	GetCities(ctx context.Context, shortCode string, province string, startDate, endDate time.Time) ([]*dto.RegionStatsResponse, error)
 	GetDevices(ctx context.Context, shortCode string, dimension string, startDate, endDate time.Time) ([]*dto.DeviceStatsResponse, error)
 	GetSources(ctx context.Context, shortCode string, startDate, endDate time.Time) ([]*dto.SourceStatsResponse, error)
+	GetUserTotalLinks(ctx context.Context, userID uint) (int64, error)
+	GetUserTotalClicks(ctx context.Context, userID uint) (int64, error)
+	GetUserClicksByDate(ctx context.Context, userID uint, date time.Time) (int64, error)
+	GetUserTrendByDay(ctx context.Context, userID uint, startDate, endDate time.Time) ([]*dto.UserTrendPoint, error)
+	GetUserTrendByHour(ctx context.Context, userID uint, startTime, endTime time.Time) ([]*dto.UserTrendPoint, error)
 	// 管理员调用接口
 	GetTotalShortlinksCount(ctx context.Context) (int64, error)
 	GetTotalClicksSum(ctx context.Context) (int64, error)
@@ -234,6 +240,110 @@ func (r *statsRepository) GetSources(ctx context.Context, shortCode string, star
 		Limit(10).
 		Scan(&results).Error
 	return results, err
+}
+
+// GetUserTotalLinks 统计用户短链接数量
+func (r *statsRepository) GetUserTotalLinks(ctx context.Context, userID uint) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.Shortlink{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}
+
+// GetUserTotalClicks 汇总用户短链接点击量
+func (r *statsRepository) GetUserTotalClicks(ctx context.Context, userID uint) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&model.Shortlink{}).
+		Select("COALESCE(SUM(click_count), 0)").
+		Where("user_id = ?", userID).
+		Row().
+		Scan(&total)
+	return total, err
+}
+
+// GetUserClicksByDate 获取用户短链在指定日期的点击数
+func (r *statsRepository) GetUserClicksByDate(ctx context.Context, userID uint, date time.Time) (int64, error) {
+	var clicks int64
+	err := r.db.WithContext(ctx).Table("stats_daily sd").
+		Select("COALESCE(SUM(sd.clicks), 0)").
+		Joins("JOIN shortlinks s ON sd.short_code = s.short_code").
+		Where("s.user_id = ?", userID).
+		Where("sd.date = ?", date.Format("2006-01-02")).
+		Row().
+		Scan(&clicks)
+	return clicks, err
+}
+
+// GetUserTrendByDay 汇总用户日级趋势
+func (r *statsRepository) GetUserTrendByDay(ctx context.Context, userID uint, startDate, endDate time.Time) ([]*dto.UserTrendPoint, error) {
+	var rows []struct {
+		Time  string
+		Count int64
+	}
+	err := r.db.WithContext(ctx).Table("stats_daily sd").
+		Select("DATE_FORMAT(sd.date, '%Y-%m-%d') AS time, SUM(sd.clicks) AS count").
+		Joins("JOIN shortlinks s ON sd.short_code = s.short_code").
+		Where("s.user_id = ?", userID).
+		Where("sd.date BETWEEN ? AND ?", startDate, endDate).
+		Group("time").
+		Order("time ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	points := make([]*dto.UserTrendPoint, 0, len(rows))
+	for _, row := range rows {
+		points = append(points, &dto.UserTrendPoint{
+			Time:  row.Time,
+			Count: row.Count,
+		})
+	}
+	return points, nil
+}
+
+// GetUserTrendByHour 汇总用户小时级趋势
+func (r *statsRepository) GetUserTrendByHour(ctx context.Context, userID uint, startTime, endTime time.Time) ([]*dto.UserTrendPoint, error) {
+	buckets := make(map[string]int64)
+	startMonth := time.Date(startTime.Year(), startTime.Month(), 1, 0, 0, 0, 0, startTime.Location())
+	endMonth := time.Date(endTime.Year(), endTime.Month(), 1, 0, 0, 0, 0, endTime.Location())
+
+	for current := startMonth; !current.After(endMonth); current = current.AddDate(0, 1, 0) {
+		tableName := fmt.Sprintf("access_logs_%s", current.Format("200601"))
+		var rows []struct {
+			Time  string
+			Count int64
+		}
+		err := r.db.WithContext(ctx).Table(tableName).
+			Select("DATE_FORMAT(accessed_at, '%Y-%m-%d %H:00:00') AS time, COUNT(*) AS count").
+			Where("user_id = ?", userID).
+			Where("accessed_at BETWEEN ? AND ?", startTime, endTime).
+			Group("time").
+			Order("time ASC").
+			Scan(&rows).Error
+		if err != nil {
+			if isTableNotExistError(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, row := range rows {
+			buckets[row.Time] += row.Count
+		}
+	}
+
+	keys := make([]string, 0, len(buckets))
+	for k := range buckets {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	points := make([]*dto.UserTrendPoint, 0, len(keys))
+	for _, key := range keys {
+		points = append(points, &dto.UserTrendPoint{
+			Time:  key,
+			Count: buckets[key],
+		})
+	}
+	return points, nil
 }
 
 // ======================= 管理员调用 =======================

@@ -32,7 +32,6 @@ func handleStatsServiceError(c *gin.Context, err error) {
 	response.Fail(c, response.InternalError, "")
 }
 
-
 // GetOverview 获取概览统计
 // @Summary      获取统计概览
 // @Description  获取指定短链接的统计概览数据（总点击、UV、今日点击等）
@@ -237,13 +236,45 @@ func (h *StatsHandler) GetLogs(c *gin.Context) {
 		response.Fail(c, response.InvalidParam, err.Error())
 		return
 	}
-	
+
 	result, err := h.svc.GetLogs(ctx, userInfo, shortCode, &req)
 	if err != nil {
 		handleStatsServiceError(c, err)
 		return
 	}
 	response.Ok(c, result, "获取成功")
+}
+
+// GetUserOverview ��ȡ�û��ۺ�ͳ��
+func (h *StatsHandler) GetUserOverview(c *gin.Context) {
+	ctx := c.Request.Context()
+	userInfo := jwt.GetUserInfo(c)
+
+	result, err := h.svc.GetUserOverview(ctx, userInfo)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "��ȡ�ɹ�")
+}
+
+// GetUserTrend ��ȡ�û��ۺ�����
+func (h *StatsHandler) GetUserTrend(c *gin.Context) {
+	ctx := c.Request.Context()
+	userInfo := jwt.GetUserInfo(c)
+
+	var req dto.UserTrendRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetUserTrend(ctx, userInfo, &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
 }
 
 // GetGlobalStats 获取全局统计

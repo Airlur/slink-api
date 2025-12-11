@@ -35,12 +35,11 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	// 初始化 IP 地理位置数据库
 	geoip.Init("./data/IP2LOCATION-LITE-DB3.IPV6.BIN")
 
-
 	// =============== 开始依赖注入 ===============
 	// 验证码模块依赖注入
 	mockSmsClient := &service.MockSmsClient{}
 	emailClient := email.NewSmtpClient(&config.GlobalConfig.Email)
-	
+
 	// 用户模块
 	userRepo := repository.NewUserRepository(db)
 	captchaService := service.NewCaptchaService(userRepo, mockSmsClient, emailClient)
@@ -70,7 +69,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	logService := service.NewLogService()
 	statsService := service.NewStatsService(slRepo, statsRepo, logRepo)
 	statsHandler := v1.NewStatsHandler(statsService)
-	
+
 	batchWriterService := service.NewBatchWriterService(db, logRepo, statsRepo)
 	maintenanceService := service.NewMaintenanceService(db)
 	// =============== 结束依赖注入 ===============
@@ -89,7 +88,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	// b. 启动定时任务调度器
-	cron.InitCron(batchWriterService,maintenanceService)
+	cron.InitCron(batchWriterService, maintenanceService)
 
 	// =============== 路由注册 ===============
 	// 设置路由
@@ -117,7 +116,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 
 	// API 分组
 	v1 := r.Group("/api/v1")
-	{	
+	{
 		// 1. 用户模块路由
 		{
 			// 公开接口
@@ -133,7 +132,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 			v1.POST("/users/recovery/request", middleware.RateLimitDevice(5, time.Hour), userHandler.RequestRecovery)
 			v1.POST("/users/recovery/verify", userHandler.VerifyRecoveryCaptcha)
 			v1.POST("/users/recovery/execute", userHandler.ExecuteRecovery)
-			
+
 			// 需要登录认证的接口
 			usersAuth := v1.Group("/users", middleware.Auth())
 			{
@@ -168,7 +167,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 				adminUsers.PUT("/:id/status", userHandler.UpdateUserStatus)
 				adminUsers.DELETE("/:id/session", userHandler.ForceLogout)
 			}
-			
+
 			// 未来所有其他管理员接口都应放在 adminGroup 之下
 			adminStats := adminGroup.Group("/stats")
 			{
@@ -190,7 +189,11 @@ func initRouter(db *gorm.DB) *gin.Engine {
 			authSlRoutes := slGroup.Use(middleware.Auth())
 			{
 				// 列表接口
-				authSlRoutes.GET("/my", slHandler.ListMy) 
+				authSlRoutes.GET("/my", slHandler.ListMy)
+
+				// 用户聚合统计
+				authSlRoutes.GET("/stats/user/overview", statsHandler.GetUserOverview)
+				authSlRoutes.GET("/stats/user/trend", statsHandler.GetUserTrend)
 
 				// 核心管理接口
 				authSlRoutes.GET("/:short_code", slHandler.GetDetail)
@@ -221,7 +224,7 @@ func initRouter(db *gorm.DB) *gin.Engine {
 		tagsAuth := v1.Group("/tags", middleware.Auth())
 		{
 			// 这个路由不带参数，是获取当前用户的所有标签
-			tagsAuth.GET("", tagHandler.List) 
+			tagsAuth.GET("", tagHandler.List)
 			tagsAuth.POST("/:short_code", tagHandler.Add)
 			tagsAuth.DELETE("/:short_code", tagHandler.Remove)
 		}
@@ -239,7 +242,7 @@ func startLogConsumer(logSvc service.LogService) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // 增加超时以防处理卡住
 		// ProcessLog 内部会自行处理和记录错误
 		logSvc.ProcessLog(ctx, event)
-		
+
 		cancel()
 	}
 }

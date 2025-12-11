@@ -27,6 +27,8 @@ type StatsService interface {
 	GetDevices(ctx context.Context, user *jwt.UserInfo, shortCode, dimension string) ([]*dto.DeviceStatsResponse, error)
 	GetSources(ctx context.Context, user *jwt.UserInfo, shortCode string) ([]*dto.SourceStatsResponse, error)
 	GetLogs(ctx context.Context, user *jwt.UserInfo, shortCode string, req *common.PaginationRequest) (*common.PaginatedData[*model.AccessLog], error)
+	GetUserOverview(ctx context.Context, user *jwt.UserInfo) (*dto.UserOverviewStatsResponse, error)
+	GetUserTrend(ctx context.Context, user *jwt.UserInfo, req *dto.UserTrendRequest) (*dto.UserTrendResponse, error)
 	GetGlobalStats(ctx context.Context) (*dto.GlobalStatsResponse, error)
 }
 
@@ -67,7 +69,7 @@ func (s *statsService) checkShortlinkOwnership(ctx context.Context, user *jwt.Us
 // GetOverview 获取概览统计数据
 func (s *statsService) GetOverview(ctx context.Context, user *jwt.UserInfo, shortCode string) (*dto.OverviewStatsResponse, error) {
 	// 1. 校验短链接所有权
-	sl, err := s.checkShortlinkOwnership(ctx, user, shortCode); 
+	sl, err := s.checkShortlinkOwnership(ctx, user, shortCode)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +97,7 @@ func (s *statsService) GetOverview(ctx context.Context, user *jwt.UserInfo, shor
 		overview.ClicksToday = clicks
 		return nil
 	})
-	
+
 	// c. 查询Top地域
 	eg.Go(func() error {
 		region, err := s.statsRepo.GetTopRegion(ctx, shortCode)
@@ -137,9 +139,13 @@ func (s *statsService) GetTrend(ctx context.Context, user *jwt.UserInfo, shortCo
 	default:
 		if req.Start != "" && req.End != "" {
 			startDate, err = time.Parse("2006-01-02", req.Start)
-			if err != nil { return nil, bizErrors.New(response.InvalidParam, "开始日期格式错误") }
+			if err != nil {
+				return nil, bizErrors.New(response.InvalidParam, "开始日期格式错误")
+			}
 			endDate, err = time.Parse("2006-01-02", req.End)
-			if err != nil { return nil, bizErrors.New(response.InvalidParam, "结束日期格式错误") }
+			if err != nil {
+				return nil, bizErrors.New(response.InvalidParam, "结束日期格式错误")
+			}
 		} else {
 			startDate = endDate.AddDate(0, 0, -6)
 		}
@@ -214,15 +220,19 @@ func (s *statsService) GetLogs(ctx context.Context, user *jwt.UserInfo, shortCod
 	if _, err := s.checkShortlinkOwnership(ctx, user, shortCode); err != nil {
 		return nil, err
 	}
-	if req.Page <= 0 { req.Page = 1 }
-	if req.Limit <= 0 { req.Limit = 10 }
-	
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+
 	logs, total, err := s.logRepo.ListLogs(ctx, shortCode, req.Page, req.Limit)
 	if err != nil {
 		logger.Error("获取原始日志失败", "error", err)
 		return nil, bizErrors.New(response.InternalError, "获取日志失败")
 	}
-	
+
 	return &common.PaginatedData[*model.AccessLog]{
 		Data: logs,
 		Pagination: common.PaginationResponse{
@@ -233,6 +243,70 @@ func (s *statsService) GetLogs(ctx context.Context, user *jwt.UserInfo, shortCod
 	}, nil
 }
 
+// GetUserOverview 获取用户聚合概览
+func (s *statsService) GetUserOverview(ctx context.Context, user *jwt.UserInfo) (*dto.UserOverviewStatsResponse, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "请先登录")
+	}
+	totalLinks, err := s.statsRepo.GetUserTotalLinks(ctx, user.ID)
+	if err != nil {
+		logger.Error("获取用户链接数量失败", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "获取用户统计失败")
+	}
+	totalClicks, err := s.statsRepo.GetUserTotalClicks(ctx, user.ID)
+	if err != nil {
+		logger.Error("获取用户点击总数失败", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "获取用户统计失败")
+	}
+	now := time.Now()
+	clicksToday, err := s.statsRepo.GetUserClicksByDate(ctx, user.ID, now)
+	if err != nil {
+		logger.Error("获取用户今日点击失败", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "获取用户统计失败")
+	}
+	yesterdayClicks, err := s.statsRepo.GetUserClicksByDate(ctx, user.ID, now.AddDate(0, 0, -1))
+	if err != nil {
+		logger.Warn("获取昨日点击失败，忽略", "error", err, "userID", user.ID)
+	}
+	var growth float64
+	if yesterdayClicks > 0 {
+		growth = float64(clicksToday-yesterdayClicks) / float64(yesterdayClicks)
+	}
+	return &dto.UserOverviewStatsResponse{
+		TotalLinks:  totalLinks,
+		TotalClicks: totalClicks,
+		ClicksToday: clicksToday,
+		GrowthRate:  growth,
+	}, nil
+}
+
+// GetUserTrend 获取用户聚合趋势
+func (s *statsService) GetUserTrend(ctx context.Context, user *jwt.UserInfo, req *dto.UserTrendRequest) (*dto.UserTrendResponse, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "请先登录")
+	}
+	granularity := req.Granularity
+	if granularity == "" {
+		granularity = "day"
+	}
+	start, end, err := parseUserTrendRange(req.StartDate, req.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	var raw []*dto.UserTrendPoint
+	switch granularity {
+	case "hour":
+		raw, err = s.statsRepo.GetUserTrendByHour(ctx, user.ID, start.Truncate(time.Hour), end.Truncate(time.Hour))
+	default:
+		raw, err = s.statsRepo.GetUserTrendByDay(ctx, user.ID, start, end)
+	}
+	if err != nil {
+		logger.Error("获取用户趋势失败", "error", err, "userID", user.ID, "granularity", granularity)
+		return nil, bizErrors.New(response.InternalError, "获取用户趋势失败")
+	}
+	filled := fillUserTrendData(start, end, granularity, raw)
+	return &dto.UserTrendResponse{Trend: filled}, nil
+}
 
 // GetGlobalStats 获取平台全局统计
 func (s *statsService) GetGlobalStats(ctx context.Context) (*dto.GlobalStatsResponse, error) {
@@ -263,4 +337,73 @@ func (s *statsService) GetGlobalStats(ctx context.Context) (*dto.GlobalStatsResp
 	}
 
 	return &globalStats, nil
+}
+
+func parseUserTrendRange(startStr, endStr string) (time.Time, time.Time, error) {
+	now := time.Now()
+	end := now
+	var err error
+	if endStr != "" {
+		end, err = parseFlexibleDate(endStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, bizErrors.New(response.InvalidParam, "结束时间格式不正确")
+		}
+	}
+	start := end.AddDate(0, 0, -6)
+	if startStr != "" {
+		start, err = parseFlexibleDate(startStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, bizErrors.New(response.InvalidParam, "开始时间格式不正确")
+		}
+	}
+	if start.After(end) {
+		start, end = end, start
+	}
+	return start, end, nil
+}
+
+func parseFlexibleDate(value string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	var err error
+	for _, layout := range layouts {
+		var t time.Time
+		t, err = time.Parse(layout, value)
+		if err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, err
+}
+
+func fillUserTrendData(start, end time.Time, granularity string, raw []*dto.UserTrendPoint) []*dto.UserTrendPoint {
+	data := make(map[string]int64)
+	for _, point := range raw {
+		data[point.Time] += point.Count
+	}
+	var step time.Duration
+	var format string
+	if granularity == "hour" {
+		step = time.Hour
+		format = "2006-01-02 15:00:00"
+		start = start.Truncate(time.Hour)
+		end = end.Truncate(time.Hour)
+	} else {
+		step = 24 * time.Hour
+		format = "2006-01-02"
+		start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+		end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
+	}
+	var result []*dto.UserTrendPoint
+	for ts := start; !ts.After(end); ts = ts.Add(step) {
+		key := ts.Format(format)
+		result = append(result, &dto.UserTrendPoint{
+			Time:  key,
+			Count: data[key],
+		})
+	}
+	return result
 }
