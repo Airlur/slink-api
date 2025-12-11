@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `shortlinkss` (
   `short_code` VARCHAR(20) NOT NULL COMMENT '短码（Base62，区分大小写）',
   `original_url` TEXT NOT NULL COMMENT '原始长链接（URLEncode编码）',
   `original_url_md5` VARCHAR(32) NOT NULL COMMENT '原始长链接的MD5摘要',
-  `user_id` BIGINT NOT NULL COMMENT '关联用户ID（管理员为0）',
+  `user_id` BIGINT NOT NULL COMMENT '关联用户ID（管理员为2）',
   `expire_at` DATETIME NULL DEFAULT NULL COMMENT '过期时间（NULL=永久）',
   `last_warn_at` DATETIME NULL DEFAULT NULL COMMENT '最近一次失效预警发送时间',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态（1=有效，0=失效）',
