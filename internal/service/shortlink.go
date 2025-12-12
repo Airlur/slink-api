@@ -45,7 +45,7 @@ type ShortlinkService interface {
 	CreateForUser(ctx context.Context, user *jwt.UserInfo, req *dto.UserCreateShortlinkRequest) (*dto.ShortlinkResponse, error)
 	// Redirect 重定向查找给定短代码的原始URL并处理分析
 	// Redirect(ctx context.Context, shortCode string) (originalUrl string, err error)
-	Redirect(ctx context.Context, shortCode, ip, ua string, user *jwt.UserInfo) (originalUrl, cacheStatus string, err error)
+	Redirect(ctx context.Context, shortCode, ip, ua, referer string, user *jwt.UserInfo) (originalUrl, cacheStatus string, err error)
 	Update(ctx context.Context, user *jwt.UserInfo, shortCode string, req *dto.UpdateShortlinkRequest) error
 	Delete(ctx context.Context, user *jwt.UserInfo, shortCode string) error
 	ListMyShortlinks(ctx context.Context, user *jwt.UserInfo, req *dto.ListMyShortlinksRequest) (*common.PaginatedData[*dto.ShortlinkDetailResponse], error)
@@ -291,7 +291,7 @@ func (s *shortlinkService) CreateForUser(ctx context.Context, user *jwt.UserInfo
 }
 
 // Redirect 重定向短链接访问
-func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua string, user *jwt.UserInfo) (string, string, error) {
+func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua, referer string, user *jwt.UserInfo) (string, string, error) {
 	cacheKey := "cache:short_code:" + shortCode
 	var cacheStatus string // 新增：记录缓存状态（HIT/MISS/NULL）
 
@@ -323,6 +323,7 @@ func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua strin
 			ShortCode: shortCode,
 			IP:        ip,
 			UserAgent: ua,
+			Referer:   referer,
 			UserID:    userID,
 			Timestamp: time.Now(),
 		})
@@ -409,6 +410,7 @@ func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua strin
 			ShortCode: shortCode,
 			IP:        ip,
 			UserAgent: ua,
+			Referer:   referer,
 			UserID:    userID,
 			Timestamp: time.Now(),
 		})
@@ -433,6 +435,7 @@ func (s *shortlinkService) Redirect(ctx context.Context, shortCode, ip, ua strin
 					ShortCode: shortCode,
 					IP:        ip,
 					UserAgent: ua,
+					Referer:   referer,
 					UserID:    userID,
 					Timestamp: time.Now(),
 				})
@@ -780,7 +783,7 @@ func validateAndFormatURL(originalURL string) (string, error) {
 	if parsedURL.Fragment != "" {
 		parsedURL.RawFragment = parsedURL.Fragment
 	}
-	
+
 	return parsedURL.String(), nil
 }
 

@@ -10,6 +10,7 @@ type AccessLogEvent struct {
 	ShortCode string    // 访问的短码
 	IP        string    // 访问者IP
 	UserAgent string    // 访问者User-Agent
+	Referer   string    // 来源地址
 	UserID    uint      // 访问者用户ID（如果已登录，否则为0）
 	Timestamp time.Time // 访问时间
 }

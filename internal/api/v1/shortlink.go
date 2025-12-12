@@ -105,9 +105,10 @@ func (h *ShortlinkHandler) Create(c *gin.Context) {
 func (h *ShortlinkHandler) Redirect(c *gin.Context) {
 	ctx := c.Request.Context()
 	shortCode := c.Param("shortCode")
-	// 获取IP, UserAgent 和可能存在的 UserInfo
+	// 获取IP, UserAgent, Referer 和可能存在的 UserInfo
 	ip := c.ClientIP()
 	ua := c.GetHeader("User-Agent")
+	referer := c.Request.Referer()
 	userInfo := jwt.GetUserInfo(c)
 
 	if shortCode == "" {
@@ -115,19 +116,19 @@ func (h *ShortlinkHandler) Redirect(c *gin.Context) {
 		return
 	}
 
-	originalUrl, cacheStatus, err := h.svc.Redirect(ctx, shortCode, ip, ua, userInfo)
+	originalUrl, cacheStatus, err := h.svc.Redirect(ctx, shortCode, ip, ua, referer, userInfo)
 	if err != nil {
 		// 对于跳转链接，如果找不到，我们通常不返回JSON，而是显示一个404页面。
 		// 这里为了简化，我们先返回一个清晰的错误响应。
 		// 在实际项目中，你可能会渲染一个HTML模板： c.HTML(http.StatusNotFound, "404.html", nil)
 		if e, ok := err.(*bizErrors.Error); ok {
 			if e.Code == response.ShortlinkNotFound {
-				// 短链接不存在，渲染 404 页面，这里暂时返回状态码
-				c.AbortWithStatus(http.StatusFound)
+				// 短链接不存在，返回自带的 404 页面
+				c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(notFoundPageHTML))
 				return
 			}
 			// 其他业务错误，返回500
-			response.Fail(c,e.Code, e.Message)
+			response.Fail(c, e.Code, e.Message)
 			return
 		}
 
@@ -338,3 +339,72 @@ func (h *ShortlinkHandler) ExtendExpiration(c *gin.Context) {
 
 	response.Ok(c, nil, "有效期延长成功")
 }
+
+const notFoundPageHTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<title>404 - 页面未找到</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		:root {
+			font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+			color: #0f172a;
+			background-color: #fff;
+		}
+		body {
+			margin: 0;
+			padding: 0;
+		}
+		.wrapper {
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 2rem;
+		}
+		.card {
+			text-align: center;
+			max-width: 480px;
+		}
+		.icon-wrapper {
+			width: 72px;
+			height: 72px;
+			margin: 0 auto 24px;
+			border-radius: 50%;
+			background: #f1f5f9;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.icon {
+			width: 36px;
+			height: 36px;
+			color: #64748b;
+		}
+		h1 {
+			margin: 0 0 12px;
+			font-size: 32px;
+		}
+		p {
+			margin: 0 auto;
+			color: #475569;
+			line-height: 1.6;
+		}
+	</style>
+</head>
+<body>
+	<div class="wrapper">
+		<div class="card">
+			<div class="icon-wrapper">
+				<svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M12 8v4m0 4h.01"></path>
+					<circle cx="12" cy="12" r="9" />
+				</svg>
+			</div>
+			<h1>404 - 页面未找到</h1>
+			<p>抱歉，您访问的页面不存在。它可能已被移动、删除，或者您输入的网址有误。</p>
+		</div>
+	</div>
+</body>
+</html>`

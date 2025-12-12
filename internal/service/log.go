@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"short-link/internal/model"
 	"short-link/internal/pkg/constant"
@@ -43,7 +45,7 @@ func (s *logService) ProcessLog(ctx context.Context, event eventbus.AccessLogEve
 		Browser:    browser,
 		Province:   province,
 		City:       city,
-		Channel:    "direct", // 来源渠道分析，暂未实现
+		Channel:    detectChannel(event.Referer),
 		AccessedAt: event.Timestamp,
 	}
 
@@ -88,4 +90,19 @@ func (s *logService) ProcessLog(ctx context.Context, event eventbus.AccessLogEve
 		// 如果Redis挂了，这里会报错。由于是异步处理，用户侧无感知，但数据会丢失。
 		// 在高可用方案中，这里可以降级写入本地文件或Kafka。
 	}
+}
+
+func detectChannel(referer string) string {
+	if referer == "" {
+		return "direct"
+	}
+	u, err := url.Parse(referer)
+	if err != nil {
+		return "direct"
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return "direct"
+	}
+	return host
 }
