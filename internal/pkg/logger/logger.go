@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"short-link/internal/pkg/config"
+	"slink-api/internal/pkg/config"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

@@ -2,9 +2,9 @@ package bootstrap
 
 import (
 	"fmt"
-	"short-link/internal/model"
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

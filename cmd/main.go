@@ -1,8 +1,8 @@
 package main
 
 import (
-	"short-link/internal/bootstrap"
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/bootstrap"
+	"slink-api/internal/pkg/logger"
 )
 
 // @title           短链接服务 API

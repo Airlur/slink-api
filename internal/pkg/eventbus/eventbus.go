@@ -1,7 +1,7 @@
 package eventbus
 
 import (
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/logger"
 	"time"
 )
 

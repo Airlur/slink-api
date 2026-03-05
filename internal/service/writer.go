@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"short-link/internal/model"
-	"short-link/internal/pkg/constant"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/redis"
-	"short-link/internal/repository"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/constant"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/redis"
+	"slink-api/internal/repository"
 
 	goRedis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"

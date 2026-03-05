@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"short-link/internal/model"
-	"short-link/internal/pkg/config"
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/redis"
-	"short-link/internal/pkg/response"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/config"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/redis"
+	"slink-api/internal/pkg/response"
 	"time"
 	
 	"github.com/gin-gonic/gin"

@@ -2,13 +2,13 @@ package v1
 
 import (
 	"errors"
-	"short-link/internal/dto"
-	"short-link/internal/dto/common"
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/response"
-	"short-link/internal/service"
+	"slink-api/internal/dto"
+	"slink-api/internal/dto/common"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/response"
+	"slink-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -245,7 +245,7 @@ func (h *StatsHandler) GetLogs(c *gin.Context) {
 	response.Ok(c, result, "获取成功")
 }
 
-// GetUserOverview ��ȡ�û��ۺ�ͳ��
+// GetUserOverview 获取用户综合统计
 func (h *StatsHandler) GetUserOverview(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)
@@ -255,10 +255,10 @@ func (h *StatsHandler) GetUserOverview(c *gin.Context) {
 		handleStatsServiceError(c, err)
 		return
 	}
-	response.Ok(c, result, "��ȡ�ɹ�")
+	response.Ok(c, result, "获取成功")
 }
 
-// GetUserTrend ��ȡ�û��ۺ�����
+// GetUserTrend 获取用户综合趋势
 func (h *StatsHandler) GetUserTrend(c *gin.Context) {
 	ctx := c.Request.Context()
 	userInfo := jwt.GetUserInfo(c)

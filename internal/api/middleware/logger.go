@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/response"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/response"
 	"net/http"
 	"time"
 

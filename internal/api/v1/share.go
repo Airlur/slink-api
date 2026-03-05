@@ -4,13 +4,13 @@ import (
 	"errors"
 	"strconv"
 
-	"short-link/internal/dto"
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/response"
-	"short-link/internal/pkg/validator"
-	"short-link/internal/service"
+	"slink-api/internal/dto"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/response"
+	"slink-api/internal/pkg/validator"
+	"slink-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

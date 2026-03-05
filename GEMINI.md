@@ -1,7 +1,7 @@
-# Short-Link Service Context
+# slink-api Service Context
 
 ## Project Overview
-**Short-Link** is a lightweight, high-performance URL shortening service written in Go. It provides long URL to short code conversion (Base62), redirection, comprehensive access statistics, and user management. It is designed for personal or small team use, featuring security measures like rate limiting, CAPTCHA, and role-based access control.
+**slink-api** is a lightweight, high-performance URL shortening service written in Go. It provides long URL to short code conversion (Base62), redirection, comprehensive access statistics, and user management. It is designed for personal or small team use, featuring security measures like rate limiting, CAPTCHA, and role-based access control.
 
 ## Interaction Standards
 *   **Precision:** Do not guess. Do not use words like "maybe", "perhaps", or "possibly" when referring to code logic. Verify first.
@@ -23,7 +23,7 @@
 The project follows a standard Go project layout (Clean Architecture-ish):
 
 ```text
-short-link/
+slink-api/
 ├── cmd/                # Entry points
 │   └── main.go         # Main server entry point
 ├── configs/            # Configuration files (config.yaml)

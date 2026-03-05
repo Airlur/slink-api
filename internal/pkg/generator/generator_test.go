@@ -3,9 +3,9 @@ package generator_test
 import (
 	"fmt"
 	"os"
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/generator"
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/generator"
+	"slink-api/internal/pkg/logger"
 	"testing"
 )
 

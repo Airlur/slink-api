@@ -2,7 +2,7 @@ package response
 
 import (
 	"net/http"
-	bizErrors "short-link/internal/pkg/errors"
+	bizErrors "slink-api/internal/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )

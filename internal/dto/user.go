@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"short-link/internal/dto/common"
+	"slink-api/internal/dto/common"
 )
 
 // RegisterRequest 注册请求参数

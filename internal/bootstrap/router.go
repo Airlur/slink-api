@@ -5,26 +5,26 @@ import (
 	"runtime"
 	"time"
 
-	"short-link/internal/api/middleware"
-	v1 "short-link/internal/api/v1"
+	"slink-api/internal/api/middleware"
+	v1 "slink-api/internal/api/v1"
 
-	"short-link/internal/model"
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/cron"
-	"short-link/internal/pkg/email"
-	"short-link/internal/pkg/eventbus"
-	"short-link/internal/pkg/geoip"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/uaparser"
-	"short-link/internal/repository"
-	"short-link/internal/service"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/cron"
+	"slink-api/internal/pkg/email"
+	"slink-api/internal/pkg/eventbus"
+	"slink-api/internal/pkg/geoip"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/uaparser"
+	"slink-api/internal/repository"
+	"slink-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	// 导入 swagger
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "short-link/docs" // 导入生成的 docs 包
+	_ "slink-api/docs" // 导入生成的 docs 包
 )
 
 func initRouter(db *gorm.DB) *gin.Engine {

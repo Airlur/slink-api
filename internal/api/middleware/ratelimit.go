@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"math/rand"
 
-	"short-link/internal/model"
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/redis"
-	"short-link/internal/pkg/response"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/redis"
+	"slink-api/internal/pkg/response"
 	"time"
 
 	"github.com/gin-gonic/gin"

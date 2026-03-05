@@ -3,8 +3,8 @@ package generator
 import (
 	"math/bits"
 
-	"short-link/internal/pkg/generator/base62"
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/generator/base62"
+	"slink-api/internal/pkg/logger"
 )
 
 const (

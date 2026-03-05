@@ -3,7 +3,7 @@ package uaparser
 import (
 	"strings"
 
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/logger"
 
 	"github.com/ua-parser/uap-go/uaparser"
 )

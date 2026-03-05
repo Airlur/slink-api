@@ -1,0 +1,143 @@
+# 全局配置
+app:
+  scheme: "http" # 协议配置，本地开发使用 http，生成环境使用 https
+  domain: "localhost:8080" # 服务自身的访问域名，生产环境请修改为实际域名
+
+server:
+  port: ":8080"
+
+database:
+  driver: "mysql"
+  host: "127.0.0.1"
+  port: "3306"
+  username: "your_db_user"
+  password: "your_db_password"
+  dbname: "your_db_name"
+
+jwt:
+  secret: "replace_with_a_strong_random_secret"
+  # expire: 168 # 1周
+  issuer: "slink-api" 
+  access_expire_minutes: 15  # Access Token 过期时间（分钟）
+  refresh_expire_hours: 168 # Refresh Token 过期时间（小时）
+
+redis:
+  host: "localhost"
+  port: "6379"
+  password: "" # 如果没有密码可以留空
+  db: 2 # 使用redis的2号库
+  pool_size: 100 
+
+logger:
+  path: "logs/app.log"
+  max_size: 128    # 每个日志文件保存的最大尺寸 单位：M
+  max_backups: 30  # 日志文件最多保存多少个备份
+  max_age: 7       # 文件最多保存多少天
+  compress: true   # 是否压缩
+
+# 功能性配置 (安全、缓存、限流等)
+security:
+  account_lock: # 账号锁定配置
+    max_login_failures: 5  # 最大登录失败次数
+    lockout_minutes: 10    # 锁定持续时间（分钟）
+  one_time_token_ttl_minutes: # 一次性令牌的有效期配置
+    password_reset: 10     # 密码重置令牌有效期10分钟
+    account_recovery: 10   # 账号恢复令牌有效期10分钟
+
+# redis 缓存三剑客处理配置
+cache:
+  default_expiration_minutes: 1440  # 默认缓存过期时间（1440分钟 = 24小时）
+  random_jitter_seconds: 300        # 随机抖动范围（300秒 = 5分钟），用于防止缓存雪崩
+  null_cache_expiration_seconds: 60 # 空值缓存的过期时间（60秒），用于防止缓存穿透
+
+# 验证码配置 
+captcha:
+  expiration_minutes: 5 # 验证码有效期（分钟）
+  cooldown_seconds: 60    # 同邮箱/手机号再次发送的冷却时间（秒）
+  # 多级限流配置，单位时间可发送验证码次数
+  limit_per_minute: 1
+  limit_per_hour: 5
+  limit_per_day: 10
+
+# 邮箱配置
+email:
+  host: "smtp.qq.com"
+  port: 465
+  username: "noreply@example.com" # 发件邮箱地址
+  password: "your_smtp_app_password"  # SMTP 授权码
+  sender_name: "SLINK" # 发件人名称，会显示在邮件中
+
+# =================== 业务模块配置 ===================
+# 3. 业务模块规则配置 (按模块划分)
+user:
+  recovery_grace_period_days: 30 # 用户注销后可恢复的宽限期（天）
+
+shortlink:
+  reserved_words: # 短链接 Code 保留字
+    - "api"
+    - "admin"
+    - "login"
+    - "logout"
+    - "register"
+    - "user"
+    - "users"
+    - "shortlink"
+    - "shortlinks"
+    - "assets"
+    - "static"
+    - "dashboard"  
+
+# 限流配置
+rate_limit:
+  create_per_day_user: 50        # 普通用户每日最多创建50个
+  create_per_day_guest: 20       # 游客每日（按IP）最多创建20个
+  custom_per_day_user: 10        # 普通用户每日最多尝试10次自定义短码
+  access_per_second_ip: 100000       # [访问限流] 单IP每秒访问速率
+  access_burst_ip: 2000           # [访问限流] 单IP峰值（令牌桶容量）
+  block_ip_window_seconds: 60    # [IP拉黑] 统计窗口（秒）
+  block_ip_max_requests: 100000     # [IP拉黑] 60s滑动窗口内最大请求数
+  block_ip_duration_minutes: 10  # [IP拉黑] 拉黑时长（分钟）
+  global_qps: 12000               # 全局QPS限制（每秒1000次）
+  global_burst: 2000             # 全局QPS峰值（令牌桶容量）
+  account_per_minute: 30         # 按账号限流（每分钟30次）
+  device_per_hour: 200           # 按设备限流（每小时200次）
+
+# 统计数据生命周期管理配置
+lifecycle:
+  log_retention_days: 90 # 原始访问日志在数据库中的保留天数
+  # archive_enabled: false # 未来可开启归档
+  # archive_path: "/data/archives/" # 归档文件存放路径
+
+rate_limitOld:
+  create_per_day_user: 50        # 普通用户每日最多创建50个短码（业务限制）
+  create_per_day_guest: 20       # 游客每日（按IP）最多创建20个短码
+  custom_per_day_user: 10        # 普通用户每日最多尝试10次自定义短码
+  
+  access_per_second_ip: 50       # [访问限流] 单IP每秒最多50次访问（防单IP高频攻击）
+  access_burst_ip: 100           # [访问限流] 单IP峰值100次（应对瞬时波动，令牌桶容量）
+  block_ip_window_seconds: 60    # [IP拉黑] 统计窗口（60秒）
+  block_ip_max_requests: 3000     # [IP拉黑] 窗口内最大请求数 50次/秒
+  block_ip_duration_minutes: 10  # [IP拉黑] 拉黑时长（10分钟）
+  global_qps: 1000               # 全局QPS限制（每秒1000次）
+  global_burst: 2000             # 全局QPS峰值（应对突发流量，令牌桶容量）
+
+  account_per_minute: 30         # 按账号限流（每分钟30次）
+  device_per_hour: 200           # 按设备限流（每小时200次）
+
+rate_limit_test:
+  # 一、业务类限流：保留基础限制，避免测试时生成过多垃圾数据
+  create_per_day_user: 1000      # 普通用户每日创建上限调高（测试时多账号生成短码不报错）
+  create_per_day_guest: 500      # 游客创建上限调高（避免测试匿名场景频繁被限）
+  custom_per_day_user: 100       # 自定义短码尝试次数调高（方便测试自定义功能）
+
+  # 二、性能类限流：设极大值，完全不干扰高并发测试
+  access_per_second_ip: 10000    # 单IP每秒访问上限（远超测试QPS，避免单IP被限）
+  access_burst_ip: 20000         # 单IP峰值（配合access_per_second_ip，应对测试瞬时流量）
+  block_ip_window_seconds: 60    # 保留窗口，但调高阈值
+  block_ip_max_requests: 100000  # 60秒内超10万次才拉黑（测试时绝不会触发，避免测试IP被封）
+  global_qps: 100000             # 全局QPS上限（远超服务单节点峰值，完全不限制性能测试）
+  global_burst: 200000           # 全局峰值（配合global_qps，确保高并发测试不被限流拦截）
+
+  # 三、账号/设备限流：调高阈值，不影响多账号/多设备测试
+  account_per_minute: 1000       # 单个账号每分钟操作上限（测试多账号并发不报错）
+  device_per_hour: 10000         # 单个设备每小时操作上限（测试多设备场景无限制）

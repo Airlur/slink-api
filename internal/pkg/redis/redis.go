@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/logger"
 )
 
 var (

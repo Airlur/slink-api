@@ -5,8 +5,8 @@ import (
 	"context"
 	"html/template"
 
-	"short-link/internal/pkg/config"
-	"short-link/internal/service" // 导入service包以获取EmailClient接口定义
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/service" // 导入service包以获取EmailClient接口定义
 
 	"gopkg.in/gomail.v2"
 )

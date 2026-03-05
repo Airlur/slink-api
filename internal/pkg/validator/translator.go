@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"short-link/internal/pkg/response"
+	"slink-api/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"

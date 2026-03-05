@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 
-	"short-link/internal/dto"
-	"short-link/internal/model"
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/response"
-	"short-link/internal/repository"
+	"slink-api/internal/dto"
+	"slink-api/internal/model"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/response"
+	"slink-api/internal/repository"
 
 	"gorm.io/gorm"
 )

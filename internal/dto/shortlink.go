@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"short-link/internal/dto/common"
+	"slink-api/internal/dto/common"
 )
 
 // GuestCreateShortlinkRequest 游客创建短链接的请求体

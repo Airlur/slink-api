@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	
-	"short-link/internal/dto"
-	"short-link/internal/model"
+	"slink-api/internal/dto"
+	"slink-api/internal/model"
 	
 	"gorm.io/gorm"
 )

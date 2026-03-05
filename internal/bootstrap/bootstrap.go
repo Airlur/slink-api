@@ -1,9 +1,9 @@
 package bootstrap
 
 import (
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/validator"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/validator"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

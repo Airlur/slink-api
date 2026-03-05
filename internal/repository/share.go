@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"short-link/internal/model"
+	"slink-api/internal/model"
     
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

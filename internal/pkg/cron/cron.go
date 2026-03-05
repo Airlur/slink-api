@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"short-link/internal/pkg/logger"
-	"short-link/internal/service"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/service"
 
 	"github.com/robfig/cron/v3"
 )

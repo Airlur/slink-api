@@ -4,7 +4,7 @@ import (
 {{if .HasTimeField}}
 	"time"
 {{end}}
-    "short-link/internal/dto/common" 
+    "slink-api/internal/dto/common" 
 )
 
 // {{.StructName}}Response

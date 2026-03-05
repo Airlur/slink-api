@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/response"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

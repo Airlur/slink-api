@@ -1,7 +1,7 @@
 package geoip
 
 import (
-	"short-link/internal/pkg/logger"
+	"slink-api/internal/pkg/logger"
 
 	"github.com/ip2location/ip2location-go/v9"
 )

@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"strings"
 
-	"short-link/internal/model"
-	"short-link/internal/pkg/constant"
-	"short-link/internal/pkg/eventbus"
-	"short-link/internal/pkg/geoip"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/redis"
-	"short-link/internal/pkg/uaparser"
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/constant"
+	"slink-api/internal/pkg/eventbus"
+	"slink-api/internal/pkg/geoip"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/redis"
+	"slink-api/internal/pkg/uaparser"
 )
 
 type LogService interface {

@@ -1,4 +1,4 @@
-module short-link
+module slink-api
 
 go 1.24.1
 

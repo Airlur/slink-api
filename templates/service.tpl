@@ -7,17 +7,17 @@ import (
 	"math/rand"
 	"time"
 
-	"short-link/internal/dto"
-	"short-link/internal/dto/common" // 引入公共分页DTO
-	"short-link/internal/model"
-	"short-link/internal/pkg/config"
-	"short-link/internal/pkg/constant"
-	bizErrors "short-link/internal/pkg/errors"
-	"short-link/internal/pkg/jwt"
-	"short-link/internal/pkg/logger"
-	"short-link/internal/pkg/redis"
-	"short-link/internal/pkg/response"
-	"short-link/internal/repository"
+	"slink-api/internal/dto"
+	"slink-api/internal/dto/common" // 引入公共分页DTO
+	"slink-api/internal/model"
+	"slink-api/internal/pkg/config"
+	"slink-api/internal/pkg/constant"
+	bizErrors "slink-api/internal/pkg/errors"
+	"slink-api/internal/pkg/jwt"
+	"slink-api/internal/pkg/logger"
+	"slink-api/internal/pkg/redis"
+	"slink-api/internal/pkg/response"
+	"slink-api/internal/repository"
 	
 	"github.com/go-sql-driver/mysql" // 导入mysql驱动以识别错误
 	goRedis "github.com/redis/go-redis/v9"

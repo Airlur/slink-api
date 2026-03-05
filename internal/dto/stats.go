@@ -1,8 +1,8 @@
 package dto
 
 import (
-	"short-link/internal/dto/common"
-	"short-link/internal/model"
+	"slink-api/internal/dto/common"
+	"slink-api/internal/model"
 )
 
 // AccessLogListResponse 用于 Swagger 文档生成分页响应
