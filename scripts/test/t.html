@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>商品详情页</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+            background-color: #f5f7fa;
+        }
+        .input-group {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        #jwtToken {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 60px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        #queryBtn {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #queryBtn:hover {
+            background: #218838;
+        }
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin-top: 20px;
+            display: none; /* 默认隐藏，查询成功后显示 */
+        }
+        .product-title {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .product-info {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        .info-label {
+            display: inline-block;
+            width: 100px;
+            color: #666;
+            font-weight: 500;
+        }
+        .info-value {
+            color: #333;
+        }
+        .time-value {
+            color: #007bff; /* 时间值特殊颜色标注 */
+        }
+        .error-message {
+            color: #dc3545;
+            padding: 15px;
+            background: #f8d7da;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="input-group">
+        <label for="jwtToken">请输入JWT令牌：</label>
+        <textarea id="jwtToken" placeholder="示例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+        <button id="queryBtn">查询商品详情（ID=1）</button>
+    </div>
+
+    <!-- 商品详情卡片（查询成功后显示） -->
+    <div class="product-card" id="productCard">
+        <h2 class="product-title" id="productName"></h2>
+        <div class="product-info">
+            <span class="info-label">商品ID：</span>
+            <span class="info-value" id="productId"></span>
+        </div>
+        <div class="product-info">
+            <span class="info-label">商品描述：</span>
+            <span class="info-value" id="productDesc"></span>
+        </div>
+        <div class="product-info">
+            <span class="info-label">商品价格：</span>
+            <span class="info-value" id="productPrice"></span>
+        </div>
+        <div class="product-info">
+            <span class="info-label">创建时间：</span>
+            <span class="info-value time-value" id="productCreatedAt"></span>
+        </div>
+        <div class="product-info">
+            <span class="info-label">更新时间：</span>
+            <span class="info-value time-value" id="productUpdatedAt"></span>
+        </div>
+    </div>
+
+    <!-- 错误信息展示 -->
+    <div class="error-message" id="errorMessage"></div>
+
+    <script>
+        // 时间格式化工具函数：将任意格式时间转为 "YYYY年MM月DD日 HH:mm:ss"
+        function formatTime(timeStr) {
+            if (!timeStr) return "未知时间";
+            // 处理各种时间格式（包含T或空格分隔的）
+            const date = new Date(timeStr);
+            // 转换为本地时间（自动处理时区）
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`;
+        }
+
+        // DOM元素
+        const jwtTokenInput = document.getElementById('jwtToken');
+        const queryBtn = document.getElementById('queryBtn');
+        const productCard = document.getElementById('productCard');
+        const errorMessage = document.getElementById('errorMessage');
+        // 商品信息DOM
+        const productId = document.getElementById('productId');
+        const productName = document.getElementById('productName');
+        const productDesc = document.getElementById('productDesc');
+        const productPrice = document.getElementById('productPrice');
+        const productCreatedAt = document.getElementById('productCreatedAt');
+        const productUpdatedAt = document.getElementById('productUpdatedAt');
+
+        // 查询按钮事件
+        queryBtn.addEventListener('click', async () => {
+            const jwtToken = jwtTokenInput.value.trim();
+            if (!jwtToken) {
+                alert('请输入JWT令牌');
+                return;
+            }
+
+            // 重置显示状态
+            productCard.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            try {
+                const response = await fetch('http://localhost:8080/api/v1/admin/goods/1', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.code !== 200) {
+                    // 接口返回错误（如令牌无效、商品不存在）
+                    errorMessage.textContent = `错误：${result.message || '查询失败'}`;
+                    errorMessage.style.display = 'block';
+                    return;
+                }
+
+                // 接口返回成功，渲染商品详情
+                const product = result.data;
+                productId.textContent = product.id;
+                productName.textContent = product.name;
+                productDesc.textContent = product.description;
+                productPrice.textContent = `¥${product.price.toFixed(2)}`; // 价格格式化保留两位小数
+                // 重点：格式化时间并显示
+                productCreatedAt.textContent = formatTime(product.created_at);
+                productUpdatedAt.textContent = formatTime(product.updated_at);
+
+                // 显示商品卡片
+                productCard.style.display = 'block';
+
+            } catch (error) {
+                // 网络错误
+                errorMessage.textContent = `请求失败：${error.message}`;
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
