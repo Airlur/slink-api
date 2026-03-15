@@ -108,8 +108,14 @@ const REFERER_POOL = parseCsv(
       'https://www.google.com/search?q=slink',
       'https://weixin.qq.com/s/demo',
       'https://weibo.com/',
+      'https://www.qq.com/',
+      'https://www.xiaoheihe.cn/app/bbs/link',
       'https://www.xiaohongshu.com/',
       'https://www.zhihu.com/',
+      'https://www.douyin.com/',
+      'https://www.bilibili.com/',
+      'https://www.reddit.com/',
+      'https://x.com/',
       'https://www.bing.com/search?q=shortlink',
     ].join(',')
 );
