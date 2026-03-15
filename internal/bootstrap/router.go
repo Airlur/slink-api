@@ -194,6 +194,11 @@ func initRouter(db *gorm.DB) *gin.Engine {
 				// 用户聚合统计
 				authSlRoutes.GET("/stats/user/overview", statsHandler.GetUserOverview)
 				authSlRoutes.GET("/stats/user/trend", statsHandler.GetUserTrend)
+				authSlRoutes.GET("/stats/user/regions", statsHandler.GetUserRegions)
+				authSlRoutes.GET("/stats/user/cities", statsHandler.GetUserCities)
+				authSlRoutes.GET("/stats/user/devices", statsHandler.GetUserDevices)
+				authSlRoutes.GET("/stats/user/sources", statsHandler.GetUserSources)
+				authSlRoutes.GET("/stats/user/top-links", statsHandler.GetUserTopLinks)
 
 				// 核心管理接口
 				authSlRoutes.GET("/:short_code", slHandler.GetDetail)

@@ -104,6 +104,7 @@ rate_limit:
 
 # 统计数据生命周期管理配置
 lifecycle:
+  enable_log_cleanup: false # 演示版默认禁用原始访问日志自动删表
   log_retention_days: 90 # 原始访问日志在数据库中的保留天数
   # archive_enabled: false # 未来可开启归档
   # archive_path: "/data/archives/" # 归档文件存放路径

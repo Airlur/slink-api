@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"slink-api/internal/pkg/config"
 	"slink-api/internal/pkg/logger"
 	"slink-api/internal/service"
 
@@ -58,16 +59,20 @@ func InitCron(writerSvc service.BatchWriterService, maintenanceSvc service.Maint
 		logger.Fatal("添加数据同步定时任务失败", "error", err)
 	}
 
-	// 【新增】任务2：每天凌晨2点执行一次日志清理
-	_, err = c.AddFunc("0 35 20 * * *", func() { // Cron表达式: "秒 分 时 日 月 周"
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute) // 清理任务可能耗时较长
-		defer cancel()
-		if err := maintenanceSvc.CleanupOldLogs(ctx); err != nil {
-			logger.Error("执行[清理过期日志]任务失败", "error", err)
+	if config.GlobalConfig.Lifecycle.EnableLogCleanup {
+		// 【新增】任务2：每天凌晨2点执行一次日志清理
+		_, err = c.AddFunc("0 35 20 * * *", func() { // Cron表达式: "秒 分 时 日 月 周"
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute) // 清理任务可能耗时较长
+			defer cancel()
+			if err := maintenanceSvc.CleanupOldLogs(ctx); err != nil {
+				logger.Error("执行[清理过期日志]任务失败", "error", err)
+			}
+		})
+		if err != nil {
+			logger.Fatal("添加日志清理定时任务失败", "error", err)
 		}
-	})
-	if err != nil {
-		logger.Fatal("添加日志清理定时任务失败", "error", err)
+	} else {
+		logger.Info("原始日志清理任务已禁用")
 	}
 
 	// 启动调度器

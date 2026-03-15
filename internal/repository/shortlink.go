@@ -6,7 +6,7 @@ import (
 
 	"slink-api/internal/dto"
 	"slink-api/internal/model"
-    
+
 	"gorm.io/gorm"
 )
 
@@ -21,9 +21,11 @@ type ShortlinkRepository interface {
 	// ===== 根据索引查询接口方法 =====
 	// GetUniqueShortCode 根据 ShortCode 查询
 	GetUniqueShortCode(ctx context.Context, shortCode string, preloadAssociations bool) (*model.Shortlink, error)
+	// GetStatsMetaByShortCode 查询统计所需的短链最小元数据
+	GetStatsMetaByShortCode(ctx context.Context, shortCode string) (*model.Shortlink, error)
 	// GetUniqueUserIdAndOriginalUrlMd5 根据 userId 查询 OriginalUrlMd5.
 	GetByOriginalURLMd5(ctx context.Context, originalUrlMd5 string) (*model.Shortlink, error)
-	// GetUniqueUserIdAndOriginalUrlMd5 根据 userId 查询 
+	// GetUniqueUserIdAndOriginalUrlMd5 根据 userId 查询
 	GetUniqueUserIdAndOriginalUrlMd5(ctx context.Context, userId int64, originalUrlMd5 string) (*model.Shortlink, error)
 }
 
@@ -55,14 +57,14 @@ func (r *shortlinkRepository) Update(ctx context.Context, id uint, updates map[s
 
 // 软删除，同时更新短链接的状态
 func (r *shortlinkRepository) Delete(ctx context.Context, id uint) error {
-	// 构造需要更新的字段：status 设为 0（禁用），deleted_at 设为当前时间（软删除标记） 
+	// 构造需要更新的字段：status 设为 0（禁用），deleted_at 设为当前时间（软删除标记）
 	// 后期规范下使用常量定义状态
 	updateData := map[string]interface{}{
-	"status":     0,
-	"deleted_at": time.Now(),
+		"status":     0,
+		"deleted_at": time.Now(),
 	}
 
- 	// 执行 UPDATE 操作：仅更新未被软删除的数据（deleted_at IS NULL）
+	// 执行 UPDATE 操作：仅更新未被软删除的数据（deleted_at IS NULL）
 	db := r.db.WithContext(ctx).Model(&model.Shortlink{}).Where("id = ?", id).Updates(updateData)
 	if db.Error != nil {
 		return db.Error
@@ -131,10 +133,10 @@ func (r *shortlinkRepository) IncrementClickCount(ctx context.Context, id uint) 
 // ===== 根据索引查询接口方法实现 =====
 
 func (r *shortlinkRepository) GetUniqueShortCode(ctx context.Context, shortCode string, preloadAssociations bool) (*model.Shortlink, error) {
-    var m model.Shortlink
-	
-    db := r.db.WithContext(ctx)
-	
+	var m model.Shortlink
+
+	db := r.db.WithContext(ctx)
+
 	// 根据参数决定是否预加载
 	if preloadAssociations {
 		db = db.Preload("Tags").Preload("Share")
@@ -143,23 +145,34 @@ func (r *shortlinkRepository) GetUniqueShortCode(ctx context.Context, shortCode 
 	if err := db.Where("short_code = ?", shortCode).First(&m).Error; err != nil {
 		return nil, err
 	}
-	
-    return &m, nil
+
+	return &m, nil
+}
+
+func (r *shortlinkRepository) GetStatsMetaByShortCode(ctx context.Context, shortCode string) (*model.Shortlink, error) {
+	var m model.Shortlink
+	if err := r.db.WithContext(ctx).
+		Select("id", "short_code", "user_id", "created_at", "click_count").
+		Where("short_code = ?", shortCode).
+		First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // TODO:查询的必须要是状态有效，没有过期的短链接，并且过期后，这个状态得变更下吧
 func (r *shortlinkRepository) GetByOriginalURLMd5(ctx context.Context, originalUrlMd5 string) (*model.Shortlink, error) {
-    var m model.Shortlink
-    if err := r.db.WithContext(ctx).Where("original_url_md5 = ? AND status = 1 AND (expire_at IS NULL OR expire_at > NOW())", originalUrlMd5).First(&m).Error; err != nil {
-        return nil, err
-    }
-    return &m, nil
+	var m model.Shortlink
+	if err := r.db.WithContext(ctx).Where("original_url_md5 = ? AND status = 1 AND (expire_at IS NULL OR expire_at > NOW())", originalUrlMd5).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 func (r *shortlinkRepository) GetUniqueUserIdAndOriginalUrlMd5(ctx context.Context, userId int64, originalUrlMd5 string) (*model.Shortlink, error) {
-    var m model.Shortlink
-    if err := r.db.WithContext(ctx).Where("user_id = ? AND original_url_md5 = ? AND status = 1 AND (expire_at IS NULL OR expire_at > NOW())", userId, originalUrlMd5).First(&m).Error; err != nil {
-        return nil, err
-    }
-    return &m, nil
+	var m model.Shortlink
+	if err := r.db.WithContext(ctx).Where("user_id = ? AND original_url_md5 = ? AND status = 1 AND (expire_at IS NULL OR expire_at > NOW())", userId, originalUrlMd5).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &m, nil
 }

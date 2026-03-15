@@ -8,16 +8,16 @@ import (
 
 type Config struct {
 	// 基础配置
-	App       AppConfig       `mapstructure:"app"`
-	Server    ServerConfig    `mapstructure:"server"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	JWT       JWTConfig       `mapstructure:"jwt"`
-	Redis     RedisConfig     `mapstructure:"redis"`
-	Logger    LoggerConfig    `mapstructure:"logger"`
-	Security  SecurityConfig  `mapstructure:"security"`
-	Cache     CacheConfig     `mapstructure:"cache"`
-	Captcha   CaptchaConfig   `mapstructure:"captcha"`
-	Email     EmailConfig     `mapstructure:"email"`
+	App      AppConfig      `mapstructure:"app"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	Logger   LoggerConfig   `mapstructure:"logger"`
+	Security SecurityConfig `mapstructure:"security"`
+	Cache    CacheConfig    `mapstructure:"cache"`
+	Captcha  CaptchaConfig  `mapstructure:"captcha"`
+	Email    EmailConfig    `mapstructure:"email"`
 	// 业务配置
 	User      UserConfig      `mapstructure:"user"`
 	Shortlink ShortlinkConfig `mapstructure:"shortlink"`
@@ -26,8 +26,8 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Scheme                  string   `mapstructure:"scheme"`
-	Domain                  string   `mapstructure:"domain"`
+	Scheme string `mapstructure:"scheme"`
+	Domain string `mapstructure:"domain"`
 }
 
 type ServerConfig struct {
@@ -44,10 +44,10 @@ type DatabaseConfig struct {
 }
 
 type JWTConfig struct {
-	Secret 				 string `mapstructure:"secret"`
-	Issuer               string `mapstructure:"issuer"`
-	AccessExpireMinutes  int    `mapstructure:"access_expire_minutes"`
-	RefreshExpireHours   int    `mapstructure:"refresh_expire_hours"`
+	Secret              string `mapstructure:"secret"`
+	Issuer              string `mapstructure:"issuer"`
+	AccessExpireMinutes int    `mapstructure:"access_expire_minutes"`
+	RefreshExpireHours  int    `mapstructure:"refresh_expire_hours"`
 }
 
 type RedisConfig struct {
@@ -67,7 +67,7 @@ type LoggerConfig struct {
 }
 
 type SecurityConfig struct {
-	AccountLock   AccountLockConfig `mapstructure:"account_lock"`
+	AccountLock     AccountLockConfig `mapstructure:"account_lock"`
 	OneTimeTokenTTL TokenTTLConfig    `mapstructure:"one_time_token_ttl_minutes"`
 }
 
@@ -125,15 +125,16 @@ type RateLimitConfig struct {
 	BlockIPWindowSeconds   int `mapstructure:"block_ip_window_seconds"`
 	BlockIPMaxRequests     int `mapstructure:"block_ip_max_requests"`
 	BlockIPDurationMinutes int `mapstructure:"block_ip_duration_minutes"`
-	GlobalQPS          	   int `mapstructure:"global_qps"`
-	GlobalBurst        	   int `mapstructure:"global_burst"`
-	AccountPerMinute   	   int `mapstructure:"account_per_minute"`
-	DevicePerHour      	   int `mapstructure:"device_per_hour"`
+	GlobalQPS              int `mapstructure:"global_qps"`
+	GlobalBurst            int `mapstructure:"global_burst"`
+	AccountPerMinute       int `mapstructure:"account_per_minute"`
+	DevicePerHour          int `mapstructure:"device_per_hour"`
 }
 
 // LifecycleConfig 统计数据生命周期管理配置
 type LifecycleConfig struct {
-	LogRetentionDays int `mapstructure:"log_retention_days"`
+	LogRetentionDays int  `mapstructure:"log_retention_days"`
+	EnableLogCleanup bool `mapstructure:"enable_log_cleanup"`
 }
 
 var GlobalConfig Config

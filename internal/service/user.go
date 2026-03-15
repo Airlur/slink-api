@@ -28,7 +28,7 @@ import (
 type UserService interface {
 	CheckExistence(ctx context.Context, req *dto.CheckExistenceRequest) (*dto.CheckExistenceResponse, error)
 	Register(ctx context.Context, req *dto.RegisterRequest) error
-	Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error)	
+	Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error)
 	RefreshToken(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.LoginResponse, error)
 	Logout(ctx context.Context, userID uint, token string) error
 	ForceLogout(ctx context.Context, targetUserID uint) error
@@ -37,12 +37,12 @@ type UserService interface {
 	Delete(ctx context.Context, userInfo *jwt.UserInfo, targetUserID uint) error
 	Get(ctx context.Context, userInfo *jwt.UserInfo, targetUserID uint) (*dto.UserResponse, error)
 	List(ctx context.Context, userInfo *jwt.UserInfo, req *dto.ListUsersRequest) (*common.PaginatedData[*dto.UserResponse], error)
-	
+
 	ForgotPassword(ctx context.Context, req *dto.ForgotPasswordRequest) error
 	VerifyPasswordResetCaptcha(ctx context.Context, req *dto.VerifyOnceCaptchaRequest) (*dto.VerifyCaptchaResponse, error)
 	ResetPassword(ctx context.Context, req *dto.ResetPasswordRequest) error
 	UpdateUserStatus(ctx context.Context, targetUserID uint, req *dto.UpdateUserStatusRequest) error
-	
+
 	RequestRecovery(ctx context.Context, req *dto.RequestRecoveryRequest) error
 	VerifyRecoveryCaptcha(ctx context.Context, req *dto.VerifyRecoveryCaptchaRequest) (*dto.VerifyRecoveryCaptchaResponse, error)
 	ExecuteRecovery(ctx context.Context, req *dto.ExecuteRecoveryRequest) error
@@ -50,16 +50,16 @@ type UserService interface {
 }
 
 type userService struct {
-	db       	 *gorm.DB // 注入 gorm.DB 以便开启事务
-	userRepo 	 repository.UserRepository
-	captchaSvc   CaptchaService
+	db         *gorm.DB // 注入 gorm.DB 以便开启事务
+	userRepo   repository.UserRepository
+	captchaSvc CaptchaService
 }
 
 func NewUserService(db *gorm.DB, userRepo repository.UserRepository, captchaSvc CaptchaService) UserService {
 	return &userService{
-		db:       	  db,
-		userRepo: 	  userRepo,
-		captchaSvc:   captchaSvc,
+		db:         db,
+		userRepo:   userRepo,
+		captchaSvc: captchaSvc,
 	}
 }
 
@@ -185,7 +185,7 @@ func (s *userService) Register(ctx context.Context, req *dto.RegisterRequest) er
 		logger.Error("创建用户失败", "error", err)
 		return bizErrors.New(response.InternalError, "注册失败，请稍后再试")
 	}
-	
+
 	return nil
 }
 
@@ -207,7 +207,7 @@ func (s *userService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 		}
 		return nil, bizErrors.New(response.UserStatusError, message)
 	}
-	
+
 	// 2. 查询用户（只查找未被软删除的）
 	user, err := s.userRepo.FindOne(ctx, &model.User{Username: req.Username}, true)
 	// 2. 对查询结果进行精细化错误处理
@@ -215,7 +215,7 @@ func (s *userService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 		// a. 如果错误是“未找到”，为了安全，依然返回模糊提示
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, bizErrors.New(response.PasswordError, "用户名或密码错误")
-		}	// b. 如果是其他未知数据库错误，记录日志并返回内部错误
+		} // b. 如果是其他未知数据库错误，记录日志并返回内部错误
 		logger.Error("登录时查询用户失败", "error", err, "username", req.Username)
 		return nil, bizErrors.New(response.InternalError, "登录失败，请稍后再试")
 	}
@@ -227,7 +227,7 @@ func (s *userService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 		lockoutDuration := time.Duration(lockoutMinutes) * time.Minute
 		count, _ := redis.IncrWithExpiration(ctx, loginAttemptsKey, lockoutDuration) // TODO：使用lua脚本改造，确保原子性
 		maxFailures := int64(config.GlobalConfig.Security.AccountLock.MaxLoginFailures)
-		
+
 		remaining := maxFailures - count // 计算剩余尝试次数
 		// 根据失败次数生成提示信息
 		var errMsg string
@@ -283,7 +283,7 @@ func (s *userService) Login(ctx context.Context, req *dto.LoginRequest) (*dto.Lo
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		User:  *convertUserToDTO(user),
+		User:         *convertUserToDTO(user),
 	}, nil
 }
 
@@ -319,12 +319,12 @@ func (s *userService) RefreshToken(ctx context.Context, req *dto.RefreshTokenReq
 	if err != nil {
 		// 用户
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.Warn("刷新Token时用户记录不存在", 
-				"userID", claims.UserID, 
-				"token", req.RefreshToken[:10]+"***",  // 脱敏
-				"clientIP", ctx.Value("client_ip"),    // 记录请求IP
-				"userAgent", ctx.Value("user_agent"),  // 记录设备信息
-			)  
+			logger.Warn("刷新Token时用户记录不存在",
+				"userID", claims.UserID,
+				"token", req.RefreshToken[:10]+"***", // 脱敏
+				"clientIP", ctx.Value("client_ip"), // 记录请求IP
+				"userAgent", ctx.Value("user_agent"), // 记录设备信息
+			)
 			return nil, bizErrors.New(response.UserNotFound, "登录状态已失效，请重新登录")
 		}
 		// 数据库查询异常（如连接超时、权限问题）
@@ -345,7 +345,7 @@ func (s *userService) RefreshToken(ctx context.Context, req *dto.RefreshTokenReq
 		logger.Error("刷新时生成新Tokens失败", "error", err, "userID", user.ID)
 		return nil, bizErrors.New(response.GenerateTokenFailed, "刷新令牌失败，请重新登录")
 	}
-	
+
 	// 5. 封装并返回新的Token和用户信息
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -359,9 +359,9 @@ func (s *userService) Logout(ctx context.Context, userID uint, token string) err
 	// 记录用户登出日志
 	logger.Info("用户登出", "userID:", userID, ",token:", token)
 
-	// 使 token 失效（这会删除活跃token并加入黑名单）
-	if err := jwt.InvalidateToken(ctx, token); err != nil {
-		// InvalidateToken 内部已经记录了详细日志
+	refreshTokenKey := fmt.Sprintf("%s%d", jwt.TokenActivePrefix, userID)
+	if err := redis.Del(ctx, refreshTokenKey); err != nil {
+		logger.Error("退出登录时删除RefreshToken失败", "error", err, "userID", userID)
 		return bizErrors.New(response.InternalError, "退出登录失败")
 	}
 
@@ -406,7 +406,7 @@ func (s *userService) Update(ctx context.Context, userInfo *jwt.UserInfo, target
 	if _, err := s.getAndCheckOwnership(ctx, userInfo, targetUserID); err != nil {
 		return err
 	}
-	
+
 	// 2. 构建更新map
 	updates := make(map[string]interface{})
 
@@ -431,12 +431,12 @@ func (s *userService) Update(ctx context.Context, userInfo *jwt.UserInfo, target
 	if req.Phone != nil {
 		updates["phone"] = *req.Phone
 	}
-	
+
 	// 如果没有任何需要更新的字段，直接返回成功
 	if len(updates) == 0 {
 		return nil
 	}
-	
+
 	// 3. 执行更新
 	if err := s.userRepo.Update(ctx, targetUserID, updates); err != nil {
 		logger.Error("更新用户信息失败", "error", err, "userID", targetUserID)
@@ -451,16 +451,16 @@ func (s *userService) UpdatePassword(ctx context.Context, userInfo *jwt.UserInfo
 	if err != nil {
 		return err
 	}
-	
+
 	// 验证旧密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
 		return bizErrors.New(response.PasswordError, "原密码错误")
 	}
-	
+
 	// 新密码不能与旧密码相同
-    if req.NewPassword == req.OldPassword {
-        return bizErrors.New(response.PasswordError, "新密码不能与原密码相同")
-    }
+	if req.NewPassword == req.OldPassword {
+		return bizErrors.New(response.PasswordError, "新密码不能与原密码相同")
+	}
 
 	// 加密新密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
@@ -510,14 +510,14 @@ func (s *userService) List(ctx context.Context, userInfo *jwt.UserInfo, req *dto
 	if req.Limit > 100 {
 		req.Limit = 100
 	}
-	
+
 	// 2. 调用 Repository 层获取数据
 	userDOs, total, err := s.userRepo.List(ctx, req)
 	if err != nil {
 		logger.Error("获取用户列表失败", "error", err)
 		return nil, bizErrors.New(response.InternalError, "获取用户列表失败")
 	}
-	
+
 	// 3. 将 DO 列表转换为 DTO 列表
 	userDTOs := make([]*dto.UserResponse, 0, len(userDOs))
 	for _, userDO := range userDOs {
@@ -556,8 +556,10 @@ func (s *userService) VerifyPasswordResetCaptcha(ctx context.Context, req *dto.V
 	}
 
 	accountType := req.Type
-	if accountType == "" { accountType = "email" } // 默认
-	
+	if accountType == "" {
+		accountType = "email"
+	} // 默认
+
 	// 【核心修正点】使用 FindOne 进行查询，unscoped=false 因为只有活跃用户才能重置密码
 	conditions := &model.User{}
 	if accountType == "email" {
@@ -664,7 +666,7 @@ func (s *userService) UpdateUserStatus(ctx context.Context, targetUserID uint, r
 			logger.Error("管理员解锁用户时删除Redis计数器失败", "error", err, "userID", targetUserID)
 		}
 	}
-	
+
 	// 5. 执行更新
 	// 更新包括软删除在内的用户
 	if err := s.userRepo.UpdateUnscoped(ctx, targetUserID, updates); err != nil {
@@ -703,7 +705,9 @@ func (s *userService) VerifyRecoveryCaptcha(ctx context.Context, req *dto.Verify
 	}
 
 	accountType := req.Type
-	if accountType == "" { accountType = "email" }
+	if accountType == "" {
+		accountType = "email"
+	}
 
 	// 【核心修正点】使用 FindOne 进行查询，unscoped=true 因为要查找已注销的用户
 	conditions := &model.User{}
@@ -722,7 +726,7 @@ func (s *userService) VerifyRecoveryCaptcha(ctx context.Context, req *dto.Verify
 	recoveryToken := uuid.NewString()
 	key := fmt.Sprintf("token:account_recovery:%s", recoveryToken)
 	// 恢复令牌有效期10分钟
-	ttl := time.Duration(config.GlobalConfig.Security.OneTimeTokenTTL.AccountRecovery) * time.Minute 
+	ttl := time.Duration(config.GlobalConfig.Security.OneTimeTokenTTL.AccountRecovery) * time.Minute
 	if err := redis.Set(ctx, key, user.ID, ttl); err != nil {
 		logger.Error("存储账号恢复令牌失败", "error", err)
 		return nil, bizErrors.New(response.InternalError, "操作失败，请稍后再试")
@@ -768,8 +772,6 @@ func (s *userService) ExecuteRecovery(ctx context.Context, req *dto.ExecuteRecov
 
 	return nil
 }
-
-
 
 // ============ 【辅助函数】 ============
 // DO to DTO 转换器
