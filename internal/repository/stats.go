@@ -37,6 +37,14 @@ type StatsRepository interface {
 	GetUserDevices(ctx context.Context, userID uint, dimension string, startDate, endDate time.Time) ([]*dto.DeviceStatsResponse, error)
 	GetUserSources(ctx context.Context, userID uint, startTime, endTime time.Time) ([]*dto.SourceStatsResponse, error)
 	GetUserTopLinksByRange(ctx context.Context, userID uint, startDate, endDate time.Time, limit int) ([]*dto.TopLinkInfo, error)
+	GetUserExpiringSoonLinks(ctx context.Context, userID uint, days, limit int) ([]*dto.DashboardExpiringLink, error)
+	GetUserZeroClickLinks(ctx context.Context, userID uint, limit int) ([]*dto.DashboardZeroClickLink, error)
+	GetUserLinkSnapshotsByDay(ctx context.Context, userID uint, startDate, endDate time.Time) ([]*dto.LinkClicksSnapshot, error)
+	GetUserLinkSnapshotsByHour(ctx context.Context, userID uint, startTime, endTime time.Time) ([]*dto.LinkClicksSnapshot, error)
+	GetUserMap(ctx context.Context, userID uint, scope string, startTime, endTime time.Time, granularity string) ([]*dto.MapStatsPoint, error)
+	GetShortlinkMap(ctx context.Context, shortCode string, scope string, startTime, endTime time.Time, granularity string) ([]*dto.MapStatsPoint, error)
+	GetUserSourceTrend(ctx context.Context, userID uint, startTime, endTime time.Time, granularity string, sources []string) ([]*dto.SourceTrendSeries, error)
+	GetUserTagPerformance(ctx context.Context, userID uint, startDate, endDate time.Time, limit int) ([]*dto.TagPerformanceItem, error)
 	GetTotalShortlinksCount(ctx context.Context) (int64, error)
 	GetTotalClicksSum(ctx context.Context) (int64, error)
 	GetActiveUsersCount(ctx context.Context, days int) (int64, error)
@@ -74,12 +82,13 @@ func (r *statsRepository) IncrementClicks(ctx context.Context, log *model.Access
 		regionStat := model.StatsRegionDaily{
 			ShortCode: log.ShortCode,
 			Date:      log.AccessedAt,
+			Country:   normalizeMapName(log.Country),
 			Province:  log.Province,
 			City:      log.City,
 			Clicks:    1,
 		}
 		if err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "province"}, {Name: "city"}},
+			Columns:   []clause.Column{{Name: "short_code"}, {Name: "date"}, {Name: "country"}, {Name: "province"}, {Name: "city"}},
 			DoUpdates: clause.Assignments(map[string]interface{}{"clicks": gorm.Expr("clicks + 1")}),
 		}).Create(&regionStat).Error; err != nil {
 			return err
@@ -281,10 +290,7 @@ func (r *statsRepository) GetSources(ctx context.Context, shortCode string, star
 			return nil, err
 		}
 		for _, row := range rows {
-			name := strings.TrimSpace(row.Name)
-			if name == "" {
-				name = "Direct"
-			}
+			name := normalizeSourceName(row.Name)
 			buckets[name] += row.Value
 		}
 	}
@@ -489,10 +495,7 @@ func (r *statsRepository) GetUserSources(ctx context.Context, userID uint, start
 			return nil, err
 		}
 		for _, row := range rows {
-			name := strings.TrimSpace(row.Name)
-			if name == "" {
-				name = "Direct"
-			}
+			name := normalizeSourceName(row.Name)
 			buckets[name] += row.Value
 		}
 	}
@@ -576,4 +579,465 @@ func normalizeDeviceDimension(dimension string) (string, error) {
 	default:
 		return "", errors.New("invalid dimension for device stats")
 	}
+}
+
+func (r *statsRepository) GetUserExpiringSoonLinks(ctx context.Context, userID uint, days, limit int) ([]*dto.DashboardExpiringLink, error) {
+	if days <= 0 {
+		days = 7
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+
+	now := time.Now()
+	deadline := now.AddDate(0, 0, days)
+
+	var rows []struct {
+		ShortCode   string
+		OriginalUrl string
+		ExpireAt    *time.Time
+		ClickCount  int64
+	}
+	err := r.db.WithContext(ctx).Table("shortlinks s").
+		Select("s.short_code, s.original_url, s.expire_at, s.click_count").
+		Where("s.user_id = ?", userID).
+		Where("s.deleted_at IS NULL").
+		Where("s.status = 1").
+		Where("s.expire_at IS NOT NULL AND s.expire_at BETWEEN ? AND ?", now, deadline).
+		Order("s.expire_at ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*dto.DashboardExpiringLink, 0, len(rows))
+	for _, row := range rows {
+		remainingDays := 0
+		if row.ExpireAt != nil {
+			diff := row.ExpireAt.Sub(now)
+			if diff > 0 {
+				remainingDays = int((diff + 24*time.Hour - time.Nanosecond) / (24 * time.Hour))
+			}
+		}
+		result = append(result, &dto.DashboardExpiringLink{
+			ShortCode:     row.ShortCode,
+			OriginalUrl:   row.OriginalUrl,
+			ExpireAt:      row.ExpireAt,
+			RemainingDays: remainingDays,
+			ClickCount:    row.ClickCount,
+		})
+	}
+	return result, nil
+}
+
+func (r *statsRepository) GetUserZeroClickLinks(ctx context.Context, userID uint, limit int) ([]*dto.DashboardZeroClickLink, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+
+	var rows []struct {
+		ShortCode   string
+		OriginalUrl string
+		CreatedAt   time.Time
+	}
+	err := r.db.WithContext(ctx).Table("shortlinks s").
+		Select("s.short_code, s.original_url, s.created_at").
+		Where("s.user_id = ?", userID).
+		Where("s.deleted_at IS NULL").
+		Where("s.status = 1 AND s.click_count = 0").
+		Order("s.created_at ASC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	result := make([]*dto.DashboardZeroClickLink, 0, len(rows))
+	for _, row := range rows {
+		ageDays := int(now.Sub(row.CreatedAt) / (24 * time.Hour))
+		if ageDays < 0 {
+			ageDays = 0
+		}
+		result = append(result, &dto.DashboardZeroClickLink{
+			ShortCode:   row.ShortCode,
+			OriginalUrl: row.OriginalUrl,
+			CreatedAt:   row.CreatedAt,
+			AgeDays:     ageDays,
+		})
+	}
+	return result, nil
+}
+
+func (r *statsRepository) GetUserLinkSnapshotsByDay(ctx context.Context, userID uint, startDate, endDate time.Time) ([]*dto.LinkClicksSnapshot, error) {
+	var snapshots []*dto.LinkClicksSnapshot
+	err := r.db.WithContext(ctx).Table("shortlinks s").
+		Select(`
+			s.short_code,
+			s.original_url,
+			s.expire_at,
+			s.created_at,
+			COALESCE(agg.click_count, 0) AS click_count
+		`).
+		Joins(`
+			LEFT JOIN (
+				SELECT short_code, SUM(clicks) AS click_count
+				FROM stats_daily
+				WHERE date BETWEEN ? AND ?
+				GROUP BY short_code
+			) agg ON agg.short_code = s.short_code
+		`, startDate, endDate).
+		Where("s.user_id = ?", userID).
+		Where("s.deleted_at IS NULL").
+		Scan(&snapshots).Error
+	return snapshots, err
+}
+
+func (r *statsRepository) GetUserLinkSnapshotsByHour(ctx context.Context, userID uint, startTime, endTime time.Time) ([]*dto.LinkClicksSnapshot, error) {
+	snapshots, err := r.listUserLinkBase(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	clicksByCode, err := r.collectUserHourlyLinkClicks(ctx, userID, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, snapshot := range snapshots {
+		snapshot.ClickCount = clicksByCode[snapshot.ShortCode]
+	}
+	return snapshots, nil
+}
+
+func (r *statsRepository) GetUserMap(ctx context.Context, userID uint, scope string, startTime, endTime time.Time, granularity string) ([]*dto.MapStatsPoint, error) {
+	if granularity == "hour" {
+		return r.collectUserMapFromLogs(ctx, userID, scope, startTime, endTime)
+	}
+	return r.collectUserMapFromDaily(ctx, userID, scope, startTime, endTime)
+}
+
+func (r *statsRepository) GetShortlinkMap(ctx context.Context, shortCode string, scope string, startTime, endTime time.Time, granularity string) ([]*dto.MapStatsPoint, error) {
+	if granularity == "hour" {
+		return r.collectShortlinkMapFromLogs(ctx, shortCode, scope, startTime, endTime)
+	}
+	return r.collectShortlinkMapFromDaily(ctx, shortCode, scope, startTime, endTime)
+}
+
+func (r *statsRepository) GetUserSourceTrend(ctx context.Context, userID uint, startTime, endTime time.Time, granularity string, sources []string) ([]*dto.SourceTrendSeries, error) {
+	if len(sources) == 0 {
+		return []*dto.SourceTrendSeries{}, nil
+	}
+
+	normalizedSources := make([]string, 0, len(sources))
+	sourceSet := make(map[string]struct{}, len(sources))
+	for _, source := range sources {
+		normalized := normalizeSourceName(source)
+		if normalized == "" {
+			normalized = "direct"
+		}
+		if _, exists := sourceSet[normalized]; exists {
+			continue
+		}
+		sourceSet[normalized] = struct{}{}
+		normalizedSources = append(normalizedSources, normalized)
+	}
+
+	data := make(map[string]map[string]int64, len(normalizedSources))
+	for _, source := range normalizedSources {
+		data[source] = make(map[string]int64)
+	}
+
+	bucketExpr, bucketFormat := bucketExprForGranularity(granularity)
+	startMonth := time.Date(startTime.Year(), startTime.Month(), 1, 0, 0, 0, 0, startTime.Location())
+	endMonth := time.Date(endTime.Year(), endTime.Month(), 1, 0, 0, 0, 0, endTime.Location())
+
+	for current := startMonth; !current.After(endMonth); current = current.AddDate(0, 1, 0) {
+		tableName := fmt.Sprintf("access_logs_%s", current.Format("200601"))
+		var rows []struct {
+			Source string
+			Bucket string
+			Count  int64
+		}
+		err := r.db.WithContext(ctx).Table(tableName+" al").
+			Select(fmt.Sprintf("al.channel AS source, %s AS bucket, COUNT(*) AS count", bucketExpr)).
+			Joins("JOIN shortlinks s ON al.short_code = s.short_code").
+			Where("s.user_id = ? AND s.deleted_at IS NULL", userID).
+			Where("al.accessed_at BETWEEN ? AND ?", startTime, endTime).
+			Where("al.channel IN ?", normalizedSources).
+			Group("source, bucket").
+			Order("bucket ASC").
+			Scan(&rows).Error
+		if err != nil {
+			if isTableNotExistError(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, row := range rows {
+			source := normalizeSourceName(row.Source)
+			data[source][row.Bucket] += row.Count
+		}
+	}
+
+	series := make([]*dto.SourceTrendSeries, 0, len(normalizedSources))
+	for _, source := range normalizedSources {
+		buckets := data[source]
+		keys := make([]string, 0, len(buckets))
+		for key := range buckets {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		points := make([]*dto.SourceTrendPoint, 0, len(keys))
+		for _, key := range keys {
+			points = append(points, &dto.SourceTrendPoint{
+				Time:  formatBucketTime(key, bucketFormat),
+				Count: buckets[key],
+			})
+		}
+
+		series = append(series, &dto.SourceTrendSeries{
+			Source: source,
+			Points: points,
+		})
+	}
+
+	return series, nil
+}
+
+func (r *statsRepository) GetUserTagPerformance(ctx context.Context, userID uint, startDate, endDate time.Time, limit int) ([]*dto.TagPerformanceItem, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+
+	var items []*dto.TagPerformanceItem
+	err := r.db.WithContext(ctx).Table("stats_daily sd").
+		Select(`
+			CASE
+				WHEN t.tag_name IS NULL OR t.tag_name = '' THEN '未分类'
+				ELSE t.tag_name
+			END AS tag,
+			SUM(sd.clicks) AS clicks,
+			COUNT(DISTINCT s.short_code) AS link_count,
+			ROUND(SUM(sd.clicks) / NULLIF(COUNT(DISTINCT s.short_code), 0), 2) AS avg_clicks_per_link
+		`).
+		Joins("JOIN shortlinks s ON sd.short_code = s.short_code").
+		Joins("LEFT JOIN tags t ON t.short_code = s.short_code AND t.deleted_at IS NULL").
+		Where("s.user_id = ? AND s.deleted_at IS NULL", userID).
+		Where("sd.date BETWEEN ? AND ?", startDate, endDate).
+		Group("tag").
+		Order("clicks DESC").
+		Limit(limit).
+		Scan(&items).Error
+	return items, err
+}
+
+func (r *statsRepository) listUserLinkBase(ctx context.Context, userID uint) ([]*dto.LinkClicksSnapshot, error) {
+	var snapshots []*dto.LinkClicksSnapshot
+	err := r.db.WithContext(ctx).Table("shortlinks s").
+		Select("s.short_code, s.original_url, s.expire_at, s.created_at, 0 AS click_count").
+		Where("s.user_id = ?", userID).
+		Where("s.deleted_at IS NULL").
+		Scan(&snapshots).Error
+	return snapshots, err
+}
+
+func (r *statsRepository) collectUserHourlyLinkClicks(ctx context.Context, userID uint, startTime, endTime time.Time) (map[string]int64, error) {
+	clicksByCode := make(map[string]int64)
+	startMonth := time.Date(startTime.Year(), startTime.Month(), 1, 0, 0, 0, 0, startTime.Location())
+	endMonth := time.Date(endTime.Year(), endTime.Month(), 1, 0, 0, 0, 0, endTime.Location())
+
+	for current := startMonth; !current.After(endMonth); current = current.AddDate(0, 1, 0) {
+		tableName := fmt.Sprintf("access_logs_%s", current.Format("200601"))
+		var rows []struct {
+			ShortCode string
+			Clicks    int64
+		}
+		err := r.db.WithContext(ctx).Table(tableName+" al").
+			Select("al.short_code, COUNT(*) AS clicks").
+			Joins("JOIN shortlinks s ON al.short_code = s.short_code").
+			Where("s.user_id = ? AND s.deleted_at IS NULL", userID).
+			Where("al.accessed_at BETWEEN ? AND ?", startTime, endTime).
+			Group("al.short_code").
+			Scan(&rows).Error
+		if err != nil {
+			if isTableNotExistError(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, row := range rows {
+			clicksByCode[row.ShortCode] += row.Clicks
+		}
+	}
+
+	return clicksByCode, nil
+}
+
+func (r *statsRepository) collectUserMapFromDaily(ctx context.Context, userID uint, scope string, startTime, endTime time.Time) ([]*dto.MapStatsPoint, error) {
+	column := "srd.province"
+	query := r.db.WithContext(ctx).Table("stats_region_daily srd").
+		Joins("JOIN shortlinks s ON srd.short_code = s.short_code").
+		Where("s.user_id = ? AND s.deleted_at IS NULL", userID).
+		Where("srd.date BETWEEN ? AND ?", startTime, endTime)
+
+	if scope == "world" {
+		column = "srd.country"
+	} else {
+		query = query.Where("srd.country = ?", "China")
+	}
+
+	var points []*dto.MapStatsPoint
+	err := query.
+		Select(fmt.Sprintf("%s AS name, SUM(srd.clicks) AS value", column)).
+		Group(column).
+		Order("value DESC").
+		Scan(&points).Error
+	if err != nil {
+		return nil, err
+	}
+	return filterMapPoints(points), nil
+}
+
+func (r *statsRepository) collectShortlinkMapFromDaily(ctx context.Context, shortCode string, scope string, startTime, endTime time.Time) ([]*dto.MapStatsPoint, error) {
+	column := "country"
+	if scope != "world" {
+		column = "province"
+	}
+
+	query := r.db.WithContext(ctx).Table("stats_region_daily").
+		Where("short_code = ? AND date BETWEEN ? AND ?", shortCode, startTime, endTime)
+	if scope != "world" {
+		query = query.Where("country = ?", "China")
+	}
+
+	var points []*dto.MapStatsPoint
+	err := query.Select(fmt.Sprintf("%s AS name, SUM(clicks) AS value", column)).
+		Group(column).
+		Order("value DESC").
+		Scan(&points).Error
+	if err != nil {
+		return nil, err
+	}
+	return filterMapPoints(points), nil
+}
+
+func (r *statsRepository) collectUserMapFromLogs(ctx context.Context, userID uint, scope string, startTime, endTime time.Time) ([]*dto.MapStatsPoint, error) {
+	return r.collectMapFromLogs(ctx, scope, startTime, endTime, func(db *gorm.DB) *gorm.DB {
+		return db.Joins("JOIN shortlinks s ON al.short_code = s.short_code").
+			Where("s.user_id = ? AND s.deleted_at IS NULL", userID)
+	})
+}
+
+func (r *statsRepository) collectShortlinkMapFromLogs(ctx context.Context, shortCode string, scope string, startTime, endTime time.Time) ([]*dto.MapStatsPoint, error) {
+	return r.collectMapFromLogs(ctx, scope, startTime, endTime, func(db *gorm.DB) *gorm.DB {
+		return db.Where("al.short_code = ?", shortCode)
+	})
+}
+
+func (r *statsRepository) collectMapFromLogs(ctx context.Context, scope string, startTime, endTime time.Time, decorate func(*gorm.DB) *gorm.DB) ([]*dto.MapStatsPoint, error) {
+	column := "al.country"
+	if scope != "world" {
+		column = "al.province"
+	}
+
+	buckets := make(map[string]int64)
+	startMonth := time.Date(startTime.Year(), startTime.Month(), 1, 0, 0, 0, 0, startTime.Location())
+	endMonth := time.Date(endTime.Year(), endTime.Month(), 1, 0, 0, 0, 0, endTime.Location())
+
+	for current := startMonth; !current.After(endMonth); current = current.AddDate(0, 1, 0) {
+		tableName := fmt.Sprintf("access_logs_%s", current.Format("200601"))
+		var rows []*dto.MapStatsPoint
+		query := r.db.WithContext(ctx).Table(tableName + " al").
+			Select(fmt.Sprintf("%s AS name, COUNT(*) AS value", column)).
+			Where("al.accessed_at BETWEEN ? AND ?", startTime, endTime)
+		if scope != "world" {
+			query = query.Where("al.country = ?", "China")
+		}
+		if decorate != nil {
+			query = decorate(query)
+		}
+		err := query.Group("name").Scan(&rows).Error
+		if err != nil {
+			if isTableNotExistError(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, row := range rows {
+			name := normalizeMapName(row.Name)
+			buckets[name] += row.Value
+		}
+	}
+
+	return mapBucketsToPoints(buckets), nil
+}
+
+func mapBucketsToPoints(buckets map[string]int64) []*dto.MapStatsPoint {
+	points := make([]*dto.MapStatsPoint, 0, len(buckets))
+	for name, value := range buckets {
+		if value <= 0 {
+			continue
+		}
+		name = normalizeMapName(name)
+		if name == "Unknown" {
+			continue
+		}
+		points = append(points, &dto.MapStatsPoint{Name: name, Value: value})
+	}
+	sort.Slice(points, func(i, j int) bool {
+		if points[i].Value == points[j].Value {
+			return points[i].Name < points[j].Name
+		}
+		return points[i].Value > points[j].Value
+	})
+	return points
+}
+
+func filterMapPoints(points []*dto.MapStatsPoint) []*dto.MapStatsPoint {
+	buckets := make(map[string]int64, len(points))
+	for _, point := range points {
+		name := normalizeMapName(point.Name)
+		if name == "Unknown" {
+			continue
+		}
+		buckets[name] += point.Value
+	}
+	return mapBucketsToPoints(buckets)
+}
+
+func bucketExprForGranularity(granularity string) (string, string) {
+	if granularity == "hour" {
+		return "DATE_FORMAT(al.accessed_at, '%Y-%m-%d %H:00:00')", "2006-01-02 15:00:00"
+	}
+	return "DATE_FORMAT(al.accessed_at, '%Y-%m-%d')", "2006-01-02"
+}
+
+func formatBucketTime(value, format string) string {
+	ts, err := time.ParseInLocation(format, value, time.Local)
+	if err != nil {
+		return value
+	}
+	return ts.Format(format)
+}
+
+func normalizeMapName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "Unknown"
+	}
+	return value
+}
+
+func normalizeSourceName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "direct"
+	}
+	if strings.EqualFold(value, "direct") {
+		return "direct"
+	}
+	return value
 }

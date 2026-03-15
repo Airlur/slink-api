@@ -229,6 +229,96 @@ func (h *StatsHandler) GetUserTopLinks(c *gin.Context) {
 	response.Ok(c, result, "success")
 }
 
+func (h *StatsHandler) GetUserDashboardActions(c *gin.Context) {
+	var req dto.DashboardActionsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetUserDashboardActions(c.Request.Context(), jwt.GetUserInfo(c), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
+func (h *StatsHandler) GetUserMap(c *gin.Context) {
+	var req dto.MapStatsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetUserMap(c.Request.Context(), jwt.GetUserInfo(c), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
+func (h *StatsHandler) GetUserSourceTrend(c *gin.Context) {
+	var req dto.SourceTrendRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetUserSourceTrend(c.Request.Context(), jwt.GetUserInfo(c), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
+func (h *StatsHandler) GetUserTagPerformance(c *gin.Context) {
+	var req dto.TagPerformanceRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetUserTagPerformance(c.Request.Context(), jwt.GetUserInfo(c), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
+func (h *StatsHandler) GetMap(c *gin.Context) {
+	var req dto.MapStatsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetMap(c.Request.Context(), jwt.GetUserInfo(c), c.Param("short_code"), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
+func (h *StatsHandler) GetCompare(c *gin.Context) {
+	var req dto.GetTrendRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Fail(c, response.InvalidParam, err.Error())
+		return
+	}
+
+	result, err := h.svc.GetCompare(c.Request.Context(), jwt.GetUserInfo(c), c.Param("short_code"), &req)
+	if err != nil {
+		handleStatsServiceError(c, err)
+		return
+	}
+	response.Ok(c, result, "success")
+}
+
 func (h *StatsHandler) GetGlobalStats(c *gin.Context) {
 	result, err := h.svc.GetGlobalStats(c.Request.Context())
 	if err != nil {

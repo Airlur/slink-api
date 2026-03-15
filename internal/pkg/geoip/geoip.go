@@ -8,20 +8,18 @@ import (
 
 var db *ip2location.DB
 
-// InitGeoIP 初始化IP地理位置数据库
-// dbPath 是 IP2Location .BIN 数据库文件的路径
 func Init(dbPath string) {
 	var err error
 	db, err = ip2location.OpenDB(dbPath)
 	if err != nil {
-		logger.Fatal("初始化GeoIP数据库失败", "error", err, "path", dbPath)
+		logger.Fatal("failed to initialize GeoIP database", "error", err, "path", dbPath)
 	}
-	logger.Info("GeoIP 数据库初始化成功")
+	logger.Info("GeoIP database initialized")
 }
 
-// Parse 解析IP地址，返回 省份和城市 信息
-func Parse(ipStr string) (province, city string) {
-	// 默认值
+// Parse returns country, province and city for the provided IP.
+func Parse(ipStr string) (country, province, city string) {
+	country = "Unknown"
 	province = "Unknown"
 	city = "Unknown"
 
@@ -34,15 +32,14 @@ func Parse(ipStr string) (province, city string) {
 		return
 	}
 
-	// 优先获取省份（Region）
+	if results.Country_long != "" && results.Country_long != "-" {
+		country = results.Country_long
+	}
 	if results.Region != "" && results.Region != "-" {
 		province = results.Region
-	} else if results.Country_long != "" && results.Country_long != "-" {
-		// 如果没有省份信息（例如某些国家直属市），则使用国家作为province
-		province = results.Country_long
+	} else if country != "Unknown" {
+		province = country
 	}
-	
-	// 获取城市（City）
 	if results.City != "" && results.City != "-" {
 		city = results.City
 	}
@@ -50,26 +47,13 @@ func Parse(ipStr string) (province, city string) {
 	return
 }
 
-// ParseRegion 解析IP地址，返回 省份/国家 信息
-func ParseRegion(ipStr string) (region string) {
-	if db == nil {
-		return "Unknown"
+func ParseRegion(ipStr string) string {
+	country, province, _ := Parse(ipStr)
+	if province != "Unknown" {
+		return province
 	}
-
-	results, err := db.Get_all(ipStr)
-	if err != nil {
-		return "Unknown"
+	if country != "Unknown" {
+		return country
 	}
-
-	// 优先获取省份（Region），如果没有则获取国家（Country_long）
-	if results.Region != "" && results.Region != "-" {
-		region = results.Region
-	} else if results.Country_long != "" && results.Country_long != "-" {
-		region = results.Country_long
-	} else {
-		region = "Unknown"
-	}
-	
-	return
+	return "Unknown"
 }
-

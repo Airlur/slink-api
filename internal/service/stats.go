@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"slink-api/internal/dto"
@@ -33,6 +34,12 @@ type StatsService interface {
 	GetUserDevices(ctx context.Context, user *jwt.UserInfo, req *dto.GetDevicesStatsRequest) ([]*dto.DeviceStatsResponse, error)
 	GetUserSources(ctx context.Context, user *jwt.UserInfo, req *dto.GetSourcesStatsRequest) ([]*dto.SourceStatsResponse, error)
 	GetUserTopLinks(ctx context.Context, user *jwt.UserInfo, req *dto.UserTopLinksRequest) ([]*dto.TopLinkInfo, error)
+	GetUserDashboardActions(ctx context.Context, user *jwt.UserInfo, req *dto.DashboardActionsRequest) (*dto.DashboardActionsResponse, error)
+	GetUserMap(ctx context.Context, user *jwt.UserInfo, req *dto.MapStatsRequest) (*dto.MapStatsResponse, error)
+	GetUserSourceTrend(ctx context.Context, user *jwt.UserInfo, req *dto.SourceTrendRequest) (*dto.SourceTrendResponse, error)
+	GetUserTagPerformance(ctx context.Context, user *jwt.UserInfo, req *dto.TagPerformanceRequest) ([]*dto.TagPerformanceItem, error)
+	GetMap(ctx context.Context, user *jwt.UserInfo, shortCode string, req *dto.MapStatsRequest) (*dto.MapStatsResponse, error)
+	GetCompare(ctx context.Context, user *jwt.UserInfo, shortCode string, req *dto.GetTrendRequest) (*dto.ShortlinkCompareResponse, error)
 	GetGlobalStats(ctx context.Context) (*dto.GlobalStatsResponse, error)
 }
 
@@ -484,7 +491,7 @@ func (s *statsService) GetUserTopLinks(ctx context.Context, user *jwt.UserInfo, 
 		req = &dto.UserTopLinksRequest{}
 	}
 
-	startDate, endDate, err := s.resolveUserAggregateRange(req.StatsRangeRequest)
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "30d")
 	if err != nil {
 		return nil, err
 	}
@@ -494,12 +501,316 @@ func (s *statsService) GetUserTopLinks(ctx context.Context, user *jwt.UserInfo, 
 		limit = 5
 	}
 
-	results, err := s.statsRepo.GetUserTopLinksByRange(ctx, user.ID, startDate, endDate, limit)
+	snapshots, err := s.getUserSnapshotsByRange(ctx, user.ID, resolved.Start, resolved.End, resolved.Granularity)
 	if err != nil {
 		logger.Error("failed to load user top links", "error", err, "userID", user.ID)
 		return nil, bizErrors.New(response.InternalError, "failed to load user top links")
 	}
+
+	sort.Slice(snapshots, func(i, j int) bool {
+		if snapshots[i].ClickCount == snapshots[j].ClickCount {
+			return snapshots[i].ShortCode < snapshots[j].ShortCode
+		}
+		return snapshots[i].ClickCount > snapshots[j].ClickCount
+	})
+
+	if len(snapshots) > limit {
+		snapshots = snapshots[:limit]
+	}
+
+	results := make([]*dto.TopLinkInfo, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		results = append(results, &dto.TopLinkInfo{
+			ShortCode:   snapshot.ShortCode,
+			OriginalUrl: snapshot.OriginalUrl,
+			ClickCount:  snapshot.ClickCount,
+		})
+	}
 	return results, nil
+}
+
+func (s *statsService) GetUserDashboardActions(ctx context.Context, user *jwt.UserInfo, req *dto.DashboardActionsRequest) (*dto.DashboardActionsResponse, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "login required")
+	}
+	if req == nil {
+		req = &dto.DashboardActionsRequest{}
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "7d")
+	if err != nil {
+		return nil, err
+	}
+
+	currentSnapshots, err := s.getUserSnapshotsByRange(ctx, user.ID, resolved.Start, resolved.End, resolved.Granularity)
+	if err != nil {
+		logger.Error("failed to load dashboard action snapshots", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load dashboard actions")
+	}
+
+	window := resolved.End.Sub(resolved.Start)
+	previousEnd := resolved.Start.Add(-time.Nanosecond)
+	previousStart := previousEnd.Add(-window)
+	previousSnapshots, err := s.getUserSnapshotsByRange(ctx, user.ID, previousStart, previousEnd, resolved.Granularity)
+	if err != nil {
+		logger.Error("failed to load previous dashboard action snapshots", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load dashboard actions")
+	}
+
+	previousClicks := make(map[string]int64, len(previousSnapshots))
+	for _, snapshot := range previousSnapshots {
+		previousClicks[snapshot.ShortCode] = snapshot.ClickCount
+	}
+
+	risingLinks := make([]*dto.DashboardRisingLink, 0, len(currentSnapshots))
+	for _, snapshot := range currentSnapshots {
+		if snapshot.ClickCount <= 0 {
+			continue
+		}
+		prev := previousClicks[snapshot.ShortCode]
+		delta := snapshot.ClickCount - prev
+		growth := 0.0
+		if prev > 0 {
+			growth = float64(delta) / float64(prev)
+		} else if snapshot.ClickCount > 0 {
+			growth = 1
+		}
+		risingLinks = append(risingLinks, &dto.DashboardRisingLink{
+			ShortCode:      snapshot.ShortCode,
+			OriginalUrl:    snapshot.OriginalUrl,
+			CurrentClicks:  snapshot.ClickCount,
+			PreviousClicks: prev,
+			DeltaClicks:    delta,
+			GrowthRate:     growth,
+		})
+	}
+	sort.Slice(risingLinks, func(i, j int) bool {
+		if risingLinks[i].DeltaClicks == risingLinks[j].DeltaClicks {
+			return risingLinks[i].GrowthRate > risingLinks[j].GrowthRate
+		}
+		return risingLinks[i].DeltaClicks > risingLinks[j].DeltaClicks
+	})
+	if len(risingLinks) > limit {
+		risingLinks = risingLinks[:limit]
+	}
+
+	expiringSoon, err := s.statsRepo.GetUserExpiringSoonLinks(ctx, user.ID, 7, limit)
+	if err != nil {
+		logger.Error("failed to load expiring links", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load dashboard actions")
+	}
+
+	zeroClickLinks, err := s.statsRepo.GetUserZeroClickLinks(ctx, user.ID, limit)
+	if err != nil {
+		logger.Error("failed to load zero click links", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load dashboard actions")
+	}
+
+	return &dto.DashboardActionsResponse{
+		ExpiringSoon:   expiringSoon,
+		RisingLinks:    risingLinks,
+		ZeroClickLinks: zeroClickLinks,
+	}, nil
+}
+
+func (s *statsService) GetUserMap(ctx context.Context, user *jwt.UserInfo, req *dto.MapStatsRequest) (*dto.MapStatsResponse, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "login required")
+	}
+	if req == nil {
+		req = &dto.MapStatsRequest{}
+	}
+
+	scope := req.Scope
+	if scope == "" {
+		scope = "china"
+	}
+
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "30d")
+	if err != nil {
+		return nil, err
+	}
+
+	points, err := s.statsRepo.GetUserMap(ctx, user.ID, scope, resolved.Start, resolved.End, resolved.Granularity)
+	if err != nil {
+		logger.Error("failed to load user map stats", "error", err, "userID", user.ID, "scope", scope)
+		return nil, bizErrors.New(response.InternalError, "failed to load map stats")
+	}
+
+	return &dto.MapStatsResponse{Scope: scope, Points: points}, nil
+}
+
+func (s *statsService) GetUserSourceTrend(ctx context.Context, user *jwt.UserInfo, req *dto.SourceTrendRequest) (*dto.SourceTrendResponse, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "login required")
+	}
+	if req == nil {
+		req = &dto.SourceTrendRequest{}
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "30d")
+	if err != nil {
+		return nil, err
+	}
+
+	topSources, err := s.statsRepo.GetUserSources(ctx, user.ID, resolved.Start, resolved.End)
+	if err != nil {
+		logger.Error("failed to load top sources for source trend", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load source trend")
+	}
+	if len(topSources) > limit {
+		topSources = topSources[:limit]
+	}
+
+	sourceNames := make([]string, 0, len(topSources))
+	for _, item := range topSources {
+		sourceNames = append(sourceNames, item.Name)
+	}
+
+	series, err := s.statsRepo.GetUserSourceTrend(ctx, user.ID, resolved.Start, resolved.End, resolved.Granularity, sourceNames)
+	if err != nil {
+		logger.Error("failed to load source trend", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load source trend")
+	}
+
+	return &dto.SourceTrendResponse{
+		Sources:     sourceNames,
+		Granularity: resolved.Granularity,
+		Series:      fillSourceTrendSeries(resolved.Start, resolved.End, resolved.Granularity, sourceNames, series),
+	}, nil
+}
+
+func (s *statsService) GetUserTagPerformance(ctx context.Context, user *jwt.UserInfo, req *dto.TagPerformanceRequest) ([]*dto.TagPerformanceItem, error) {
+	if user == nil {
+		return nil, bizErrors.New(response.Unauthorized, "login required")
+	}
+	if req == nil {
+		req = &dto.TagPerformanceRequest{}
+	}
+
+	startDate, endDate, err := s.resolveUserAggregateRange(req.StatsRangeRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 8
+	}
+
+	items, err := s.statsRepo.GetUserTagPerformance(ctx, user.ID, startDate, endDate, limit)
+	if err != nil {
+		logger.Error("failed to load tag performance", "error", err, "userID", user.ID)
+		return nil, bizErrors.New(response.InternalError, "failed to load tag performance")
+	}
+	return items, nil
+}
+
+func (s *statsService) GetMap(ctx context.Context, user *jwt.UserInfo, shortCode string, req *dto.MapStatsRequest) (*dto.MapStatsResponse, error) {
+	_, err := s.checkShortlinkOwnership(ctx, user, shortCode)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil {
+		req = &dto.MapStatsRequest{}
+	}
+
+	scope := req.Scope
+	if scope == "" {
+		scope = "china"
+	}
+
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "30d")
+	if err != nil {
+		return nil, err
+	}
+
+	points, err := s.statsRepo.GetShortlinkMap(ctx, shortCode, scope, resolved.Start, resolved.End, resolved.Granularity)
+	if err != nil {
+		logger.Error("failed to load shortlink map stats", "error", err, "shortCode", shortCode, "scope", scope)
+		return nil, bizErrors.New(response.InternalError, "failed to load map stats")
+	}
+
+	return &dto.MapStatsResponse{Scope: scope, Points: points}, nil
+}
+
+func (s *statsService) GetCompare(ctx context.Context, user *jwt.UserInfo, shortCode string, req *dto.GetTrendRequest) (*dto.ShortlinkCompareResponse, error) {
+	_, err := s.checkShortlinkOwnership(ctx, user, shortCode)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil {
+		req = &dto.GetTrendRequest{}
+	}
+
+	resolved, err := resolveStatsRange(req.StatsRangeRequest, time.Now(), "7d")
+	if err != nil {
+		return nil, err
+	}
+
+	snapshots, err := s.getUserSnapshotsByRange(ctx, user.ID, resolved.Start, resolved.End, resolved.Granularity)
+	if err != nil {
+		logger.Error("failed to load compare snapshots", "error", err, "userID", user.ID, "shortCode", shortCode)
+		return nil, bizErrors.New(response.InternalError, "failed to load compare stats")
+	}
+
+	sort.Slice(snapshots, func(i, j int) bool {
+		if snapshots[i].ClickCount == snapshots[j].ClickCount {
+			return snapshots[i].ShortCode < snapshots[j].ShortCode
+		}
+		return snapshots[i].ClickCount > snapshots[j].ClickCount
+	})
+
+	var (
+		totalClicks int64
+		rangeClicks int64
+		rankInRange int
+	)
+	for index, snapshot := range snapshots {
+		totalClicks += snapshot.ClickCount
+		if snapshot.ShortCode == shortCode {
+			rangeClicks = snapshot.ClickCount
+			rankInRange = index + 1
+		}
+	}
+	if rankInRange == 0 {
+		rankInRange = len(snapshots)
+	}
+
+	totalRankedLinks := len(snapshots)
+	average := 0.0
+	if totalRankedLinks > 0 {
+		average = float64(totalClicks) / float64(totalRankedLinks)
+	}
+
+	share := 0.0
+	if totalClicks > 0 {
+		share = float64(rangeClicks) / float64(totalClicks)
+	}
+
+	versusAverage := 0.0
+	if average > 0 {
+		versusAverage = float64(rangeClicks) / average
+	}
+
+	return &dto.ShortlinkCompareResponse{
+		RangeClicks:          rangeClicks,
+		AccountShareRate:     share,
+		RankInRange:          rankInRange,
+		TotalRankedLinks:     totalRankedLinks,
+		AverageClicksPerLink: average,
+		VersusAverageRatio:   versusAverage,
+	}, nil
 }
 
 func (s *statsService) resolveAggregateRange(sl *model.Shortlink, req dto.StatsRangeRequest) (time.Time, time.Time, error) {
@@ -587,4 +898,42 @@ func trendSeriesBounds(start, end time.Time, granularity string) (time.Duration,
 		return time.Hour, "2006-01-02 15:00:00", start.Truncate(time.Hour), end.Truncate(time.Hour)
 	}
 	return 24 * time.Hour, "2006-01-02", dayStart(start), dayStart(end)
+}
+
+func (s *statsService) getUserSnapshotsByRange(ctx context.Context, userID uint, start, end time.Time, granularity string) ([]*dto.LinkClicksSnapshot, error) {
+	if granularity == "hour" {
+		return s.statsRepo.GetUserLinkSnapshotsByHour(ctx, userID, start, end)
+	}
+	startDate, endDate := normalizeDateRange(start, end)
+	return s.statsRepo.GetUserLinkSnapshotsByDay(ctx, userID, startDate, endDate)
+}
+
+func fillSourceTrendSeries(start, end time.Time, granularity string, sourceOrder []string, raw []*dto.SourceTrendSeries) []*dto.SourceTrendSeries {
+	step, format, normalizedStart, normalizedEnd := trendSeriesBounds(start, end, granularity)
+	rawMap := make(map[string]map[string]int64, len(raw))
+	for _, series := range raw {
+		points := make(map[string]int64, len(series.Points))
+		for _, point := range series.Points {
+			points[point.Time] += point.Count
+		}
+		rawMap[series.Source] = points
+	}
+
+	result := make([]*dto.SourceTrendSeries, 0, len(sourceOrder))
+	for _, source := range sourceOrder {
+		seriesData := rawMap[source]
+		points := make([]*dto.SourceTrendPoint, 0)
+		for ts := normalizedStart; !ts.After(normalizedEnd); ts = ts.Add(step) {
+			key := ts.Format(format)
+			points = append(points, &dto.SourceTrendPoint{
+				Time:  key,
+				Count: seriesData[key],
+			})
+		}
+		result = append(result, &dto.SourceTrendSeries{
+			Source: source,
+			Points: points,
+		})
+	}
+	return result
 }

@@ -196,9 +196,13 @@ func initRouter(db *gorm.DB) *gin.Engine {
 				authSlRoutes.GET("/stats/user/trend", statsHandler.GetUserTrend)
 				authSlRoutes.GET("/stats/user/regions", statsHandler.GetUserRegions)
 				authSlRoutes.GET("/stats/user/cities", statsHandler.GetUserCities)
+				authSlRoutes.GET("/stats/user/map", statsHandler.GetUserMap)
 				authSlRoutes.GET("/stats/user/devices", statsHandler.GetUserDevices)
 				authSlRoutes.GET("/stats/user/sources", statsHandler.GetUserSources)
+				authSlRoutes.GET("/stats/user/source-trend", statsHandler.GetUserSourceTrend)
+				authSlRoutes.GET("/stats/user/tag-performance", statsHandler.GetUserTagPerformance)
 				authSlRoutes.GET("/stats/user/top-links", statsHandler.GetUserTopLinks)
+				authSlRoutes.GET("/stats/user/dashboard-actions", statsHandler.GetUserDashboardActions)
 
 				// 核心管理接口
 				authSlRoutes.GET("/:short_code", slHandler.GetDetail)
@@ -212,8 +216,10 @@ func initRouter(db *gorm.DB) *gin.Engine {
 				authSlRoutes.GET("/:short_code/stats/trend", statsHandler.GetTrend)
 				authSlRoutes.GET("/:short_code/stats/provinces", statsHandler.GetProvinces)
 				authSlRoutes.GET("/:short_code/stats/cities", statsHandler.GetCities)
+				authSlRoutes.GET("/:short_code/stats/map", statsHandler.GetMap)
 				authSlRoutes.GET("/:short_code/stats/devices", statsHandler.GetDevices)
 				authSlRoutes.GET("/:short_code/stats/sources", statsHandler.GetSources)
+				authSlRoutes.GET("/:short_code/stats/compare", statsHandler.GetCompare)
 				authSlRoutes.GET("/:short_code/stats/logs", statsHandler.GetLogs)
 			}
 		}

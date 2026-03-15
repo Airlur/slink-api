@@ -32,6 +32,13 @@ func initDB() (*gorm.DB, error) {
 	if err := db.AutoMigrate(&model.User{}); err != nil {
 		return nil, err
 	}
+	if err := EnsureStatsSchema(db); err != nil {
+		return nil, err
+	}
 	logger.Log.Info("Database connection successful")
 	return db, nil
+}
+
+func OpenDatabase() (*gorm.DB, error) {
+	return initDB()
 }
