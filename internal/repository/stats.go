@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -950,7 +952,7 @@ func (r *statsRepository) collectMapFromLogs(ctx context.Context, scope string, 
 	for current := startMonth; !current.After(endMonth); current = current.AddDate(0, 1, 0) {
 		tableName := fmt.Sprintf("access_logs_%s", current.Format("200601"))
 		var rows []*dto.MapStatsPoint
-		query := r.db.WithContext(ctx).Table(tableName + " al").
+		query := r.db.WithContext(ctx).Table(tableName+" al").
 			Select(fmt.Sprintf("%s AS name, COUNT(*) AS value", column)).
 			Where("al.accessed_at BETWEEN ? AND ?", startTime, endTime)
 		if scope != "world" {
@@ -1039,5 +1041,19 @@ func normalizeSourceName(value string) string {
 	if strings.EqualFold(value, "direct") {
 		return "direct"
 	}
-	return value
+
+	normalized := strings.ToLower(value)
+
+	if strings.Contains(normalized, "://") {
+		if parsed, err := url.Parse(normalized); err == nil && parsed.Hostname() != "" {
+			normalized = parsed.Hostname()
+		}
+	}
+
+	if host, _, err := net.SplitHostPort(normalized); err == nil && host != "" {
+		normalized = host
+	}
+
+	normalized = strings.TrimPrefix(normalized, "www.")
+	return normalized
 }

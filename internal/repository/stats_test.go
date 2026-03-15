@@ -150,3 +150,17 @@ func TestGetUserCitiesAllowsGlobalFallbackWhenProvinceIsEmpty(t *testing.T) {
 		t.Fatalf("unmet sql expectations: %v", err)
 	}
 }
+
+func TestNormalizeSourceNameStripsWWWPrefix(t *testing.T) {
+	if got := normalizeSourceName("www.zhihu.com"); got != "zhihu.com" {
+		t.Fatalf("expected zhihu.com, got %s", got)
+	}
+
+	if got := normalizeSourceName("https://www.google.com/search?q=slink"); got != "google.com" {
+		t.Fatalf("expected google.com, got %s", got)
+	}
+
+	if got := normalizeSourceName("weixin.qq.com"); got != "weixin.qq.com" {
+		t.Fatalf("expected weixin.qq.com, got %s", got)
+	}
+}
